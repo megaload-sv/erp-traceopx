@@ -7,6 +7,10 @@ use RuntimeException;
 
 class SecuritySeeder extends Seeder
 {
+    private const ADMIN_NAME = 'Administrador TraceOPX';
+    private const ADMIN_EMAIL = 'admin@traceopx.com';
+    private const ADMIN_PASSWORD = 'TraceOPX@2026';
+
     public function run(): void
     {
         $now = date('Y-m-d H:i:s');
@@ -41,28 +45,26 @@ class SecuritySeeder extends Seeder
         foreach ($permissions as $permission) {
             $existing = $this->db->table('permissions')->where('slug', $permission['slug'])->get()->getRowArray();
             if ($existing === null) {
-                $this->db->table('permissions')->insert($permission + ['description' => null, 'created_at' => $now, 'updated_at' => $now]);
+                $this->db->table('permissions')->insert($permission + [
+                    'description' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
             }
         }
 
-        $adminEmail = trim((string) env('AUTH_ADMIN_EMAIL', 'admin@traceopx.local'));
-        $adminPassword = (string) env('AUTH_ADMIN_PASSWORD', '');
-        $adminName = trim((string) env('AUTH_ADMIN_NAME', 'Administrador TraceOPX'));
+        $user = $this->db->table('users')->where('email', self::ADMIN_EMAIL)->get()->getRowArray();
 
-        if ($adminPassword === '') {
-            throw new RuntimeException('Define AUTH_ADMIN_PASSWORD en .env antes de ejecutar SecuritySeeder.');
-        }
-
-        $user = $this->db->table('users')->where('email', $adminEmail)->get()->getRowArray();
         if ($user === null) {
             $this->db->table('users')->insert([
-                'name' => $adminName,
-                'email' => $adminEmail,
-                'password_hash' => password_hash($adminPassword, PASSWORD_DEFAULT),
+                'name' => self::ADMIN_NAME,
+                'email' => self::ADMIN_EMAIL,
+                'password_hash' => password_hash(self::ADMIN_PASSWORD, PASSWORD_DEFAULT),
                 'is_active' => 1,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
+
             $userId = (int) $this->db->insertID();
         } else {
             $userId = (int) $user['id'];
@@ -74,17 +76,33 @@ class SecuritySeeder extends Seeder
         }
 
         $roleId = (int) $superadmin['id'];
-        $userRole = $this->db->table('user_roles')->where(['user_id' => $userId, 'role_id' => $roleId])->get()->getRowArray();
+        $userRole = $this->db->table('user_roles')
+            ->where(['user_id' => $userId, 'role_id' => $roleId])
+            ->get()
+            ->getRowArray();
+
         if ($userRole === null) {
-            $this->db->table('user_roles')->insert(['user_id' => $userId, 'role_id' => $roleId, 'created_at' => $now]);
+            $this->db->table('user_roles')->insert([
+                'user_id' => $userId,
+                'role_id' => $roleId,
+                'created_at' => $now,
+            ]);
         }
 
         $allPermissions = $this->db->table('permissions')->select('id')->get()->getResultArray();
         foreach ($allPermissions as $permission) {
             $permissionId = (int) $permission['id'];
-            $assigned = $this->db->table('role_permissions')->where(['role_id' => $roleId, 'permission_id' => $permissionId])->get()->getRowArray();
+            $assigned = $this->db->table('role_permissions')
+                ->where(['role_id' => $roleId, 'permission_id' => $permissionId])
+                ->get()
+                ->getRowArray();
+
             if ($assigned === null) {
-                $this->db->table('role_permissions')->insert(['role_id' => $roleId, 'permission_id' => $permissionId, 'created_at' => $now]);
+                $this->db->table('role_permissions')->insert([
+                    'role_id' => $roleId,
+                    'permission_id' => $permissionId,
+                    'created_at' => $now,
+                ]);
             }
         }
     }
