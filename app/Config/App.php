@@ -11,36 +11,101 @@ class App extends BaseConfig
      * Base Site URL
      * --------------------------------------------------------------------------
      *
-     * Keep a safe local default here. Override it per environment in `.env`:
+     * URL to your CodeIgniter root. Typically, this will be your base URL,
+     * WITH a trailing slash:
      *
-     * app.baseURL = 'https://traceopx.grupomegaload.com/'
+     * E.g., http://example.com/
+     *
+     * Override this value per environment in `.env` using `app.baseURL`.
      */
     public string $baseURL = 'http://localhost:8080/';
 
-    /** @var list<string> */
+    /**
+     * Allowed Hostnames in the Site URL other than the hostname in the baseURL.
+     * If you want to accept multiple Hostnames, set this.
+     *
+     * @var list<string>
+     */
     public array $allowedHostnames = [];
 
+    /**
+     * --------------------------------------------------------------------------
+     * Index File
+     * --------------------------------------------------------------------------
+     */
     public string $indexPage = '';
 
+    /**
+     * --------------------------------------------------------------------------
+     * URI PROTOCOL
+     * --------------------------------------------------------------------------
+     */
     public string $uriProtocol = 'REQUEST_URI';
 
+    /*
+    |--------------------------------------------------------------------------
+    | Allowed URL Characters
+    |--------------------------------------------------------------------------
+    */
     public string $permittedURIChars = 'a-z 0-9~%.:_\-';
 
+    /**
+     * --------------------------------------------------------------------------
+     * Default Locale
+     * --------------------------------------------------------------------------
+     */
     public string $defaultLocale = 'es';
 
+    /**
+     * --------------------------------------------------------------------------
+     * Negotiate Locale
+     * --------------------------------------------------------------------------
+     */
     public bool $negotiateLocale = false;
 
-    /** @var list<string> */
+    /**
+     * --------------------------------------------------------------------------
+     * Supported Locales
+     * --------------------------------------------------------------------------
+     *
+     * @var list<string>
+     */
     public array $supportedLocales = ['es'];
 
+    /**
+     * --------------------------------------------------------------------------
+     * Application Timezone
+     * --------------------------------------------------------------------------
+     */
     public string $appTimezone = 'America/El_Salvador';
 
+    /**
+     * --------------------------------------------------------------------------
+     * Default Character Set
+     * --------------------------------------------------------------------------
+     */
     public string $charset = 'UTF-8';
 
+    /**
+     * --------------------------------------------------------------------------
+     * Force Global Secure Requests
+     * --------------------------------------------------------------------------
+     */
     public bool $forceGlobalSecureRequests = false;
 
-    /** @var array<string, string> */
+    /**
+     * --------------------------------------------------------------------------
+     * Reverse Proxy IPs
+     * --------------------------------------------------------------------------
+     *
+     * @var array<string, string>
+     */
     public array $proxyIPs = [];
 
+    /**
+     * --------------------------------------------------------------------------
+     * Content Security Policy
+     * --------------------------------------------------------------------------
+     */
     public bool $CSPEnabled = false;
 }
