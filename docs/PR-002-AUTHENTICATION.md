@@ -6,17 +6,27 @@ Base de seguridad del ERP TraceOPX con usuarios, roles, permisos, inicio y cierr
 
 ## Configuración previa
 
-Agregar en `.env`:
+La conexión a MySQL se configura normalmente en `.env`.
+
+Para proteger las rutas administrativas de instalación, agregar un token largo y exclusivo:
 
 ```ini
-AUTH_ADMIN_NAME = 'Administrador TraceOPX'
-AUTH_ADMIN_EMAIL = 'admin@traceopx.local'
-AUTH_ADMIN_PASSWORD = 'Usa-una-clave-segura-aqui'
+SYSTEM_MIGRATION_TOKEN = 'coloca-aqui-un-token-largo-y-seguro'
 ```
 
-En producción nunca se debe usar una contraseña de ejemplo.
+Las credenciales iniciales del administrador se crean mediante `SecuritySeeder`; no requieren variables adicionales en `.env`.
 
-## Instalación local
+## Administrador inicial
+
+```text
+Nombre: Administrador TraceOPX
+Correo: admin@traceopx.com
+Contraseña temporal: TraceOPX@2026
+```
+
+La contraseña es únicamente para la instalación inicial y deberá cambiarse antes de habilitar usuarios reales.
+
+## Instalación local mediante CLI
 
 ```bash
 git fetch origin
@@ -28,16 +38,34 @@ php spark db:seed SecuritySeeder
 php spark serve
 ```
 
+## Instalación mediante rutas protegidas
+
+Ejecutar migraciones y el seeder inicial en una sola operación:
+
+```text
+/system/setup?token=TOKEN_CONFIGURADO
+```
+
+Rutas individuales:
+
+```text
+/system/migrate?token=TOKEN_CONFIGURADO
+/system/seed/SecuritySeeder?token=TOKEN_CONFIGURADO
+```
+
+Las respuestas se devuelven en formato JSON. Los errores técnicos completos se registran en `writable/logs` y no se exponen públicamente.
+
 ## Flujo de validación
 
-1. Abrir `/dashboard` sin sesión.
-2. Confirmar redirección a `/auth/login`.
-3. Intentar credenciales incorrectas.
-4. Ingresar con las credenciales definidas en `.env`.
-5. Confirmar acceso al dashboard.
-6. Confirmar que la sesión se mantiene entre solicitudes.
-7. Ejecutar cierre de sesión mediante POST.
-8. Confirmar que `/dashboard` vuelve a estar protegido.
+1. Ejecutar la configuración inicial por CLI o mediante `/system/setup`.
+2. Abrir `/dashboard` sin sesión.
+3. Confirmar redirección a `/auth/login`.
+4. Intentar credenciales incorrectas.
+5. Ingresar con el administrador inicial.
+6. Confirmar acceso al dashboard.
+7. Confirmar que la sesión se mantiene entre solicitudes.
+8. Ejecutar cierre de sesión mediante POST.
+9. Confirmar que `/dashboard` vuelve a estar protegido.
 
 ## Base de datos
 
@@ -49,7 +77,7 @@ Tablas creadas:
 - `user_roles`
 - `role_permissions`
 
-El seeder es idempotente: puede ejecutarse nuevamente sin duplicar roles, permisos o asignaciones.
+El seeder es idempotente: puede ejecutarse nuevamente sin duplicar roles, permisos, usuarios o asignaciones.
 
 ## Producción
 
@@ -62,7 +90,7 @@ php spark db:seed SecuritySeeder
 php spark cache:clear
 ```
 
-Antes del seeder, definir una contraseña administrativa exclusiva del entorno productivo.
+Alternativamente, usar una sola vez la ruta protegida `/system/setup` y posteriormente retirar o rotar el token de instalación.
 
 ## Reversión
 
