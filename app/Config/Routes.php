@@ -19,4 +19,13 @@ $routes->group('system', static function (RouteCollection $routes): void {
 
 $routes->group('', ['filter' => 'auth'], static function (RouteCollection $routes): void {
     $routes->get('dashboard', 'DashboardController::index', ['as' => 'dashboard']);
+
+    $routes->group('customers', static function (RouteCollection $routes): void {
+        $routes->get('', 'CustomersController::index', ['as' => 'customers.index']);
+        $routes->get('create', 'CustomersController::create', ['as' => 'customers.create']);
+        $routes->post('', 'CustomersController::store', ['as' => 'customers.store']);
+        $routes->get('(:num)', 'CustomersController::show/$1', ['as' => 'customers.show']);
+        $routes->get('(:num)/edit', 'CustomersController::edit/$1', ['as' => 'customers.edit']);
+        $routes->post('(:num)', 'CustomersController::update/$1', ['as' => 'customers.update']);
+    });
 });
