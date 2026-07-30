@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Database;
 use Config\Services;
 use Throwable;
 
@@ -67,7 +68,7 @@ class SystemController extends BaseController
         }
 
         try {
-            $seeder = Services::seeder();
+            $seeder = Database::seeder();
             $seeder->call($seederName);
 
             return $this->response->setJSON([
@@ -96,8 +97,11 @@ class SystemController extends BaseController
         }
 
         try {
-            Services::migrations()->latest();
-            Services::seeder()->call('SecuritySeeder');
+            $migrations = Services::migrations();
+            $migrations->latest();
+
+            $seeder = Database::seeder();
+            $seeder->call('SecuritySeeder');
 
             return $this->response->setJSON([
                 'success' => true,
