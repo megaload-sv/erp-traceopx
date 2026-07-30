@@ -2,25 +2,20 @@
 
 namespace App\Models;
 
-use CodeIgniter\Model;
-
-class UserModel extends Model
+class UserModel extends BaseModel
 {
     protected $table = 'users';
     protected $primaryKey = 'id';
-    protected $returnType = 'array';
-    protected $useSoftDeletes = true;
     protected $allowedFields = [
         'name',
         'email',
         'password_hash',
         'is_active',
         'last_login_at',
+        'entry_user',
+        'modify_user',
+        'delete_user',
     ];
-    protected $useTimestamps = true;
-    protected $createdField = 'created_at';
-    protected $updatedField = 'updated_at';
-    protected $deletedField = 'deleted_at';
 
     public function findActiveByEmail(string $email): ?array
     {

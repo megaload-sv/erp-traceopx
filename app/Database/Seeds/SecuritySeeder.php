@@ -10,10 +10,15 @@ class SecuritySeeder extends Seeder
     private const ADMIN_NAME = 'Administrador TraceOPX';
     private const ADMIN_EMAIL = 'admin@traceopx.com';
     private const ADMIN_PASSWORD = 'TraceOPX@2026';
+    private const SYSTEM_ACTOR = 'system';
 
     public function run(): void
     {
         $now = date('Y-m-d H:i:s');
+        $audit = [
+            'entry_user' => self::SYSTEM_ACTOR,
+            'entry_date' => $now,
+        ];
 
         $roles = [
             ['name' => 'Superadministrador', 'slug' => 'superadmin', 'description' => 'Acceso completo al ERP.', 'is_active' => 1],
@@ -27,7 +32,7 @@ class SecuritySeeder extends Seeder
         foreach ($roles as $role) {
             $existing = $this->db->table('roles')->where('slug', $role['slug'])->get()->getRowArray();
             if ($existing === null) {
-                $this->db->table('roles')->insert($role + ['created_at' => $now, 'updated_at' => $now]);
+                $this->db->table('roles')->insert($role + $audit + ['created_at' => $now, 'updated_at' => $now]);
             }
         }
 
@@ -45,7 +50,7 @@ class SecuritySeeder extends Seeder
         foreach ($permissions as $permission) {
             $existing = $this->db->table('permissions')->where('slug', $permission['slug'])->get()->getRowArray();
             if ($existing === null) {
-                $this->db->table('permissions')->insert($permission + [
+                $this->db->table('permissions')->insert($permission + $audit + [
                     'description' => null,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -61,6 +66,8 @@ class SecuritySeeder extends Seeder
                 'email' => self::ADMIN_EMAIL,
                 'password_hash' => password_hash(self::ADMIN_PASSWORD, PASSWORD_DEFAULT),
                 'is_active' => 1,
+                'entry_user' => self::SYSTEM_ACTOR,
+                'entry_date' => $now,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
@@ -85,6 +92,8 @@ class SecuritySeeder extends Seeder
             $this->db->table('user_roles')->insert([
                 'user_id' => $userId,
                 'role_id' => $roleId,
+                'entry_user' => self::SYSTEM_ACTOR,
+                'entry_date' => $now,
                 'created_at' => $now,
             ]);
         }
@@ -101,6 +110,8 @@ class SecuritySeeder extends Seeder
                 $this->db->table('role_permissions')->insert([
                     'role_id' => $roleId,
                     'permission_id' => $permissionId,
+                    'entry_user' => self::SYSTEM_ACTOR,
+                    'entry_date' => $now,
                     'created_at' => $now,
                 ]);
             }
