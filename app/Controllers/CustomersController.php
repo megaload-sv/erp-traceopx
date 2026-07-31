@@ -28,10 +28,7 @@ class CustomersController extends BaseController
 
     public function create(): string
     {
-        return view('customers/form', [
-            'title' => 'Nuevo cliente',
-            'customer' => null,
-        ]);
+        return view('customers/form', ['title' => 'Nuevo cliente', 'customer' => null]);
     }
 
     public function store(): RedirectResponse
@@ -68,18 +65,10 @@ class CustomersController extends BaseController
             $this->storeOptionalContact($customerId);
             $this->storeOptionalAddress($customerId);
 
-            (new ActivityService())->record(
-                'customer',
-                $customerId,
-                'customer.created',
-                'Cliente creado',
-                'Se registró el cliente en ERP TraceOPX.'
-            );
-
+            (new ActivityService())->record('customer', $customerId, 'customer.created', 'Cliente creado', 'Se registró el cliente en ERP TraceOPX.');
             $db->transCommit();
 
-            return redirect()->to(route_to('customers.show', $customerId))
-                ->with('success', 'Cliente creado correctamente.');
+            return redirect()->to(route_to('customers.show', $customerId))->with('success', 'Cliente creado correctamente.');
         } catch (Throwable $e) {
             $db->transRollback();
             log_message('error', 'Error creando cliente: {message}', ['message' => $e->getMessage()]);
@@ -98,15 +87,10 @@ class CustomersController extends BaseController
         return view('customers/show', [
             'title' => $customer['business_name'],
             'customer' => $customer,
-            'contacts' => (new CustomerContactModel())->where('customer_id', $id)->findAll(),
+            'contacts' => (new CustomerContactModel())->forCustomer($id),
             'addresses' => (new CustomerAddressModel())->where('customer_id', $id)->findAll(),
             'activities' => (new ActivityEventModel())->forEntity('customer', $id),
-            'commercialSummary' => [
-                'quotations' => 0,
-                'activeOrders' => 0,
-                'invoiced' => 0.00,
-                'receivable' => 0.00,
-            ],
+            'commercialSummary' => ['quotations' => 0, 'activeOrders' => 0, 'invoiced' => 0.00, 'receivable' => 0.00],
         ]);
     }
 
@@ -117,17 +101,13 @@ class CustomersController extends BaseController
             throw new RuntimeException('Cliente no encontrado.');
         }
 
-        return view('customers/form', [
-            'title' => 'Editar cliente',
-            'customer' => $customer,
-        ]);
+        return view('customers/form', ['title' => 'Editar cliente', 'customer' => $customer]);
     }
 
     public function update(int $id): RedirectResponse
     {
         $model = new CustomerModel();
-        $customer = $model->find($id);
-        if ($customer === null) {
+        if ($model->find($id) === null) {
             return redirect()->to(route_to('customers.index'))->with('error', 'Cliente no encontrado.');
         }
 
@@ -169,6 +149,7 @@ class CustomersController extends BaseController
             'customer_id' => $customerId,
             'name' => $name,
             'position' => $this->nullable('contact_position'),
+            'contact_role' => 'commercial',
             'email' => $this->nullable('contact_email'),
             'phone' => $this->nullable('contact_phone'),
             'is_primary' => 1,
@@ -177,7 +158,7 @@ class CustomersController extends BaseController
             throw new RuntimeException(implode(' ', $model->errors()));
         }
 
-        (new ActivityService())->record('customer', $customerId, 'customer.contact_added', 'Contacto principal agregado', "Se agregó a {$name} como contacto principal.");
+        (new ActivityService())->record('customer', $customerId, 'customer.contact_added', 'Contacto principal agregado', "Se agregó a {$name} como contacto comercial principal.");
     }
 
     private function storeOptionalAddress(int $customerId): void
@@ -207,6 +188,7 @@ class CustomersController extends BaseController
     private function nullable(string $field): ?string
     {
         $value = trim((string) $this->request->getPost($field));
+
         return $value === '' ? null : $value;
     }
 
@@ -222,6 +204,7 @@ class CustomersController extends BaseController
     private function rollbackWithErrors($db, array $errors): RedirectResponse
     {
         $db->transRollback();
+
         return redirect()->back()->withInput()->with('errors', $errors);
     }
 }
