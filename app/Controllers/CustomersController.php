@@ -16,10 +16,12 @@ class CustomersController extends BaseController
     public function index(): string
     {
         $search = trim((string) $this->request->getGet('q'));
+        $model = new CustomerModel();
 
         return view('customers/index', [
             'title' => 'Clientes',
-            'customers' => (new CustomerModel())->searchList($search),
+            'customers' => $model->searchList($search),
+            'metrics' => $model->dashboardMetrics(),
             'search' => $search,
         ]);
     }
@@ -43,6 +45,10 @@ class CustomersController extends BaseController
                 'uuid' => $this->uuidV4(),
                 'code' => $customers->nextCode(),
                 'customer_type' => (string) $this->request->getPost('customer_type'),
+                'lifecycle_stage' => (string) ($this->request->getPost('lifecycle_stage') ?: 'potential'),
+                'relationship_tier' => (string) ($this->request->getPost('relationship_tier') ?: 'standard'),
+                'assigned_sales_user' => $this->nullable('assigned_sales_user'),
+                'next_follow_up_date' => $this->nullable('next_follow_up_date'),
                 'business_name' => trim((string) $this->request->getPost('business_name')),
                 'trade_name' => $this->nullable('trade_name'),
                 'tax_id' => $this->nullable('tax_id'),
@@ -95,6 +101,12 @@ class CustomersController extends BaseController
             'contacts' => (new CustomerContactModel())->where('customer_id', $id)->findAll(),
             'addresses' => (new CustomerAddressModel())->where('customer_id', $id)->findAll(),
             'activities' => (new ActivityEventModel())->forEntity('customer', $id),
+            'commercialSummary' => [
+                'quotations' => 0,
+                'activeOrders' => 0,
+                'invoiced' => 0.00,
+                'receivable' => 0.00,
+            ],
         ]);
     }
 
@@ -121,6 +133,10 @@ class CustomersController extends BaseController
 
         $updated = $model->update($id, [
             'customer_type' => (string) $this->request->getPost('customer_type'),
+            'lifecycle_stage' => (string) $this->request->getPost('lifecycle_stage'),
+            'relationship_tier' => (string) $this->request->getPost('relationship_tier'),
+            'assigned_sales_user' => $this->nullable('assigned_sales_user'),
+            'next_follow_up_date' => $this->nullable('next_follow_up_date'),
             'business_name' => trim((string) $this->request->getPost('business_name')),
             'trade_name' => $this->nullable('trade_name'),
             'tax_id' => $this->nullable('tax_id'),
@@ -136,7 +152,7 @@ class CustomersController extends BaseController
             return redirect()->back()->withInput()->with('errors', $model->errors());
         }
 
-        (new ActivityService())->record('customer', $id, 'customer.updated', 'Cliente actualizado', 'Se actualizaron los datos generales del cliente.');
+        (new ActivityService())->record('customer', $id, 'customer.updated', 'Cliente actualizado', 'Se actualizaron los datos generales y comerciales del cliente.');
 
         return redirect()->to(route_to('customers.show', $id))->with('success', 'Cliente actualizado correctamente.');
     }
