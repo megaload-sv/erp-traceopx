@@ -1,67 +1,68 @@
 <?= $this->extend('layouts/admin') ?>
 
 <?= $this->section('content') ?>
-<?php if (session('success')): ?>
-    <div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800"><?= esc(session('success')) ?></div>
-<?php endif ?>
-<?php if (session('error')): ?>
-    <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800"><?= esc(session('error')) ?></div>
-<?php endif ?>
+<?php
+$stageLabels = ['potential' => 'Potencial', 'active' => 'Activo', 'inactive' => 'Inactivo'];
+$tierLabels = ['standard' => 'Estándar', 'preferential' => 'Preferencial', 'strategic' => 'Estratégico'];
+?>
+<?php if (session('success')): ?><div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800"><?= esc(session('success')) ?></div><?php endif ?>
+<?php if (session('error')): ?><div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800"><?= esc(session('error')) ?></div><?php endif ?>
 
 <div class="mb-7 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
     <div>
-        <p class="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-600">Gestión comercial</p>
+        <p class="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-600">Relación comercial</p>
         <h3 class="mt-2 text-3xl font-bold text-slate-950">Clientes</h3>
-        <p class="mt-2 text-slate-600">Directorio central para cotizaciones, órdenes, facturación y cobros.</p>
+        <p class="mt-2 max-w-3xl text-slate-600">Encuentra clientes, identifica oportunidades de reactivación y administra la relación comercial desde un solo lugar.</p>
     </div>
     <a href="<?= route_to('customers.create') ?>" class="rounded-xl bg-slate-950 px-5 py-3 text-center text-sm font-semibold text-white">Nuevo cliente</a>
 </div>
 
+<div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <?php foreach ([
+        ['Total', $metrics['total']],
+        ['Activos', $metrics['active']],
+        ['Potenciales', $metrics['potential']],
+        ['Inactivos', $metrics['inactive']],
+        ['Estratégicos', $metrics['strategic']],
+    ] as [$label, $value]): ?>
+        <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-sm font-medium text-slate-500"><?= esc($label) ?></p>
+            <p class="mt-3 text-3xl font-bold text-slate-950"><?= esc((string) $value) ?></p>
+        </article>
+    <?php endforeach ?>
+</div>
+
 <form method="get" action="<?= route_to('customers.index') ?>" class="mb-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row">
-    <input type="search" name="q" value="<?= esc($search) ?>" placeholder="Código, nombre, NIT, correo o teléfono" class="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-cyan-500">
+    <input type="search" name="q" value="<?= esc($search) ?>" placeholder="Código, nombre, NIT, correo, teléfono o ejecutivo" class="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-cyan-500">
     <button class="rounded-xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950">Buscar</button>
-    <?php if ($search !== ''): ?>
-        <a href="<?= route_to('customers.index') ?>" class="rounded-xl border border-slate-300 px-5 py-3 text-center font-semibold text-slate-700">Limpiar</a>
-    <?php endif ?>
+    <?php if ($search !== ''): ?><a href="<?= route_to('customers.index') ?>" class="rounded-xl border border-slate-300 px-5 py-3 text-center font-semibold text-slate-700">Limpiar</a><?php endif ?>
 </form>
 
 <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
     <div class="overflow-x-auto">
         <table class="min-w-full text-left text-sm">
             <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                    <th class="px-5 py-4">Código</th>
-                    <th class="px-5 py-4">Cliente</th>
-                    <th class="px-5 py-4">Documento</th>
-                    <th class="px-5 py-4">Contacto</th>
-                    <th class="px-5 py-4">Estado</th>
-                    <th class="px-5 py-4 text-right">Acción</th>
-                </tr>
+                <tr><th class="px-5 py-4">Cliente</th><th class="px-5 py-4">Contacto</th><th class="px-5 py-4">Relación</th><th class="px-5 py-4">Seguimiento</th><th class="px-5 py-4 text-right">Acción</th></tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
                 <?php foreach ($customers as $customer): ?>
                     <tr class="hover:bg-slate-50">
-                        <td class="px-5 py-4 font-bold text-cyan-700"><?= esc($customer['code']) ?></td>
                         <td class="px-5 py-4">
                             <p class="font-semibold text-slate-950"><?= esc($customer['business_name']) ?></p>
-                            <?php if ($customer['trade_name']): ?><p class="text-slate-500"><?= esc($customer['trade_name']) ?></p><?php endif ?>
+                            <p class="mt-1 text-xs font-bold text-cyan-700"><?= esc($customer['code']) ?><?= $customer['trade_name'] ? ' · ' . esc($customer['trade_name']) : '' ?></p>
                         </td>
-                        <td class="px-5 py-4 text-slate-600"><?= esc($customer['tax_id'] ?: '—') ?></td>
-                        <td class="px-5 py-4 text-slate-600">
-                            <p><?= esc($customer['email'] ?: '—') ?></p>
-                            <p><?= esc($customer['phone'] ?: '') ?></p>
-                        </td>
+                        <td class="px-5 py-4 text-slate-600"><p><?= esc($customer['email'] ?: 'Sin correo') ?></p><p><?= esc($customer['phone'] ?: 'Sin teléfono') ?></p></td>
                         <td class="px-5 py-4">
-                            <span class="rounded-full px-3 py-1 text-xs font-semibold <?= (int) $customer['status'] === 1 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600' ?>">
-                                <?= (int) $customer['status'] === 1 ? 'Activo' : 'Inactivo' ?>
-                            </span>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-800"><?= esc($stageLabels[$customer['lifecycle_stage']] ?? $customer['lifecycle_stage']) ?></span>
+                                <span class="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-800"><?= esc($tierLabels[$customer['relationship_tier']] ?? $customer['relationship_tier']) ?></span>
+                            </div>
                         </td>
-                        <td class="px-5 py-4 text-right"><a href="<?= route_to('customers.show', $customer['id']) ?>" class="font-semibold text-cyan-700">Ver detalle</a></td>
+                        <td class="px-5 py-4 text-slate-600"><p><?= esc($customer['assigned_sales_user'] ?: 'Sin ejecutivo') ?></p><p class="text-xs text-slate-500"><?= $customer['next_follow_up_date'] ? esc(date('d/m/Y', strtotime($customer['next_follow_up_date']))) : 'Sin fecha programada' ?></p></td>
+                        <td class="px-5 py-4 text-right"><a href="<?= route_to('customers.show', $customer['id']) ?>" class="font-semibold text-cyan-700">Abrir perfil</a></td>
                     </tr>
                 <?php endforeach ?>
-                <?php if ($customers === []): ?>
-                    <tr><td colspan="6" class="px-5 py-12 text-center text-slate-500">No se encontraron clientes.</td></tr>
-                <?php endif ?>
+                <?php if ($customers === []): ?><tr><td colspan="5" class="px-5 py-14 text-center text-slate-500">No se encontraron clientes.</td></tr><?php endif ?>
             </tbody>
         </table>
     </div>
