@@ -3,8 +3,10 @@
 <?php
 $stageLabels = ['potential' => 'Potencial', 'active' => 'Activo', 'inactive' => 'Inactivo / por reactivar'];
 $tierLabels = ['standard' => 'Estándar', 'preferential' => 'Preferencial', 'strategic' => 'Estratégico'];
+$roleLabels = ['commercial' => 'Comercial', 'technical' => 'Técnico', 'billing' => 'Facturación', 'other' => 'Otro'];
 ?>
 <?php if (session('success')): ?><div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800"><?= esc(session('success')) ?></div><?php endif ?>
+<?php if (session('error')): ?><div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800"><?= esc(session('error')) ?></div><?php endif ?>
 
 <section class="mb-6 rounded-3xl bg-slate-950 p-6 text-white shadow-sm lg:p-8">
     <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -19,6 +21,7 @@ $tierLabels = ['standard' => 'Estándar', 'preferential' => 'Preferencial', 'str
             </div>
         </div>
         <div class="flex flex-wrap gap-3">
+            <a href="<?= route_to('customers.contacts.create', $customer['id']) ?>" class="rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-900">Agregar contacto</a>
             <span class="rounded-xl border border-slate-700 px-4 py-3 text-sm text-slate-300">Nueva cotización · Próximamente</span>
             <a href="<?= route_to('customers.edit', $customer['id']) ?>" class="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-950">Editar perfil</a>
         </div>
@@ -26,12 +29,7 @@ $tierLabels = ['standard' => 'Estándar', 'preferential' => 'Preferencial', 'str
 </section>
 
 <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-    <?php foreach ([
-        ['Cotizaciones', $commercialSummary['quotations']],
-        ['Órdenes activas', $commercialSummary['activeOrders']],
-        ['Facturado', '$' . number_format($commercialSummary['invoiced'], 2)],
-        ['Pendiente de cobro', '$' . number_format($commercialSummary['receivable'], 2)],
-    ] as [$label, $value]): ?>
+    <?php foreach ([['Cotizaciones', $commercialSummary['quotations']], ['Órdenes activas', $commercialSummary['activeOrders']], ['Facturado', '$' . number_format($commercialSummary['invoiced'], 2)], ['Pendiente de cobro', '$' . number_format($commercialSummary['receivable'], 2)]] as [$label, $value]): ?>
         <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500"><?= esc($label) ?></p><p class="mt-3 text-3xl font-bold text-slate-950"><?= esc((string) $value) ?></p></article>
     <?php endforeach ?>
 </div>
@@ -61,10 +59,35 @@ $tierLabels = ['standard' => 'Estándar', 'preferential' => 'Preferencial', 'str
             </dl>
         </section>
 
-        <div class="grid gap-6 lg:grid-cols-2">
-            <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h4 class="text-lg font-bold text-slate-950">Contactos</h4><div class="mt-5 space-y-4"><?php foreach ($contacts as $contact): ?><article class="rounded-xl bg-slate-50 p-4"><p class="font-semibold text-slate-950"><?= esc($contact['name']) ?><?= (int) $contact['is_primary'] === 1 ? ' · Principal' : '' ?></p><p class="text-sm text-slate-500"><?= esc($contact['position'] ?: 'Sin cargo') ?></p><p class="mt-2 text-sm"><?= esc($contact['email'] ?: '—') ?></p><p class="text-sm"><?= esc($contact['phone'] ?: '—') ?></p></article><?php endforeach ?><?php if ($contacts === []): ?><p class="text-sm text-slate-500">No hay contactos registrados.</p><?php endif ?></div></section>
-            <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h4 class="text-lg font-bold text-slate-950">Sucursales y direcciones</h4><div class="mt-5 space-y-4"><?php foreach ($addresses as $address): ?><article class="rounded-xl bg-slate-50 p-4"><p class="font-semibold capitalize text-slate-950"><?= esc($address['address_type']) ?><?= (int) $address['is_primary'] === 1 ? ' · Principal' : '' ?></p><p class="mt-2 text-sm"><?= esc($address['address_line']) ?></p><p class="text-sm text-slate-500"><?= esc(implode(', ', array_filter([$address['municipality'], $address['department'], $address['country']]))) ?></p></article><?php endforeach ?><?php if ($addresses === []): ?><p class="text-sm text-slate-500">No hay direcciones registradas.</p><?php endif ?></div></section>
-        </div>
+        <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div><p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-600">Relación humana</p><h4 class="mt-1 text-lg font-bold text-slate-950">Contactos del cliente</h4><p class="mt-1 text-sm text-slate-500">El contacto principal será sugerido por defecto en cotizaciones y comunicaciones.</p></div>
+                <a href="<?= route_to('customers.contacts.create', $customer['id']) ?>" class="rounded-xl bg-slate-950 px-4 py-2.5 text-center text-sm font-semibold text-white">Agregar contacto</a>
+            </div>
+            <div class="mt-5 grid gap-4 md:grid-cols-2">
+                <?php foreach ($contacts as $contact): ?>
+                    <article class="rounded-2xl border <?= (int) $contact['is_primary'] === 1 ? 'border-cyan-300 bg-cyan-50/50' : 'border-slate-200 bg-slate-50' ?> p-5">
+                        <div class="flex items-start justify-between gap-3">
+                            <div><p class="font-bold text-slate-950"><?= esc($contact['name']) ?></p><p class="mt-1 text-sm text-slate-500"><?= esc($contact['position'] ?: 'Sin cargo') ?></p></div>
+                            <?php if ((int) $contact['is_primary'] === 1): ?><span class="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-800">Principal</span><?php endif ?>
+                        </div>
+                        <span class="mt-4 inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200"><?= esc($roleLabels[$contact['contact_role']] ?? 'Otro') ?></span>
+                        <div class="mt-4 space-y-1 text-sm text-slate-700"><p><?= esc($contact['email'] ?: 'Sin correo') ?></p><p><?= esc($contact['phone'] ?: 'Sin teléfono') ?></p></div>
+                        <div class="mt-5 flex flex-wrap gap-2">
+                            <a href="<?= route_to('customers.contacts.edit', $customer['id'], $contact['id']) ?>" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">Editar</a>
+                            <?php if ((int) $contact['is_primary'] !== 1 && (int) $contact['status'] === 1): ?>
+                                <form method="post" action="<?= route_to('customers.contacts.primary', $customer['id'], $contact['id']) ?>"><?= csrf_field() ?><button class="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-semibold text-slate-950">Usar como principal</button></form>
+                            <?php endif ?>
+                        </div>
+                    </article>
+                <?php endforeach ?>
+                <?php if ($contacts === []): ?>
+                    <div class="rounded-2xl border border-dashed border-slate-300 p-8 text-center md:col-span-2"><p class="font-semibold text-slate-900">Este cliente aún no tiene contactos.</p><p class="mt-1 text-sm text-slate-500">Agrega la primera persona con quien se gestionará la relación comercial.</p><a href="<?= route_to('customers.contacts.create', $customer['id']) ?>" class="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white">Agregar primer contacto</a></div>
+                <?php endif ?>
+            </div>
+        </section>
+
+        <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h4 class="text-lg font-bold text-slate-950">Sucursales y direcciones</h4><div class="mt-5 space-y-4"><?php foreach ($addresses as $address): ?><article class="rounded-xl bg-slate-50 p-4"><p class="font-semibold capitalize text-slate-950"><?= esc($address['address_type']) ?><?= (int) $address['is_primary'] === 1 ? ' · Principal' : '' ?></p><p class="mt-2 text-sm"><?= esc($address['address_line']) ?></p><p class="text-sm text-slate-500"><?= esc(implode(', ', array_filter([$address['municipality'], $address['department'], $address['country']]))) ?></p></article><?php endforeach ?><?php if ($addresses === []): ?><p class="text-sm text-slate-500">No hay direcciones registradas.</p><?php endif ?></div></section>
     </div>
 
     <aside class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
