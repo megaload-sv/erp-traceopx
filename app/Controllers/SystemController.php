@@ -15,12 +15,10 @@ class SystemController extends BaseController
         $providedToken = trim((string) $this->request->getGet('token'));
 
         if ($configuredToken === '' || ! hash_equals($configuredToken, $providedToken)) {
-            return $this->response
-                ->setStatusCode(403)
-                ->setJSON([
-                    'success' => false,
-                    'message' => 'Acceso no autorizado.',
-                ]);
+            return $this->response->setStatusCode(403)->setJSON([
+                'success' => false,
+                'message' => 'Acceso no autorizado.',
+            ]);
         }
 
         return null;
@@ -33,8 +31,7 @@ class SystemController extends BaseController
         }
 
         try {
-            $migrations = Services::migrations();
-            $migrations->latest();
+            Services::migrations()->latest();
 
             return $this->response->setJSON([
                 'success' => true,
@@ -43,12 +40,10 @@ class SystemController extends BaseController
         } catch (Throwable $e) {
             log_message('error', 'Error ejecutando migraciones: {message}', ['message' => $e->getMessage()]);
 
-            return $this->response
-                ->setStatusCode(500)
-                ->setJSON([
-                    'success' => false,
-                    'message' => 'No fue posible ejecutar las migraciones.',
-                ]);
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => 'No fue posible ejecutar las migraciones.',
+            ]);
         }
     }
 
@@ -59,17 +54,14 @@ class SystemController extends BaseController
         }
 
         if (! preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $seederName)) {
-            return $this->response
-                ->setStatusCode(422)
-                ->setJSON([
-                    'success' => false,
-                    'message' => 'Nombre de seeder no válido.',
-                ]);
+            return $this->response->setStatusCode(422)->setJSON([
+                'success' => false,
+                'message' => 'Nombre de seeder no válido.',
+            ]);
         }
 
         try {
-            $seeder = Database::seeder();
-            $seeder->call($seederName);
+            Database::seeder()->call($seederName);
 
             return $this->response->setJSON([
                 'success' => true,
@@ -81,12 +73,10 @@ class SystemController extends BaseController
                 'message' => $e->getMessage(),
             ]);
 
-            return $this->response
-                ->setStatusCode(500)
-                ->setJSON([
-                    'success' => false,
-                    'message' => "No fue posible ejecutar el seeder {$seederName}.",
-                ]);
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => "No fue posible ejecutar el seeder {$seederName}.",
+            ]);
         }
     }
 
@@ -97,25 +87,23 @@ class SystemController extends BaseController
         }
 
         try {
-            $migrations = Services::migrations();
-            $migrations->latest();
+            Services::migrations()->latest();
 
             $seeder = Database::seeder();
             $seeder->call('SecuritySeeder');
+            $seeder->call('CustomerFiscalCatalogSeeder');
 
             return $this->response->setJSON([
                 'success' => true,
-                'message' => 'Configuración inicial completada: migraciones y SecuritySeeder ejecutados.',
+                'message' => 'Configuración inicial completada: migraciones, seguridad y catálogos fiscales ejecutados.',
             ]);
         } catch (Throwable $e) {
             log_message('error', 'Error ejecutando configuración inicial: {message}', ['message' => $e->getMessage()]);
 
-            return $this->response
-                ->setStatusCode(500)
-                ->setJSON([
-                    'success' => false,
-                    'message' => 'No fue posible completar la configuración inicial.',
-                ]);
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => 'No fue posible completar la configuración inicial.',
+            ]);
         }
     }
 }
