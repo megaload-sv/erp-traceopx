@@ -47,15 +47,25 @@ $addressTypeLabels = ['fiscal' => 'Fiscal', 'operational' => 'Operativa / sucurs
             </div>
         </section>
 
+        <section class="rounded-2xl border border-violet-200 bg-violet-50/40 p-6 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-violet-700">Perfil fiscal</p>
+            <h4 class="mt-2 text-lg font-bold">Información tributaria</h4>
+            <dl class="mt-5 grid gap-5 sm:grid-cols-2">
+                <div><dt class="text-xs font-semibold uppercase text-slate-500">Naturaleza</dt><dd class="mt-1"><?= $customer['customer_type'] === 'company' ? 'Empresa' : 'Persona natural' ?></dd></div>
+                <div><dt class="text-xs font-semibold uppercase text-slate-500">Tipo de contribuyente</dt><dd class="mt-1"><?= esc($taxpayerType['name'] ?? 'Sin clasificar') ?></dd></div>
+                <div><dt class="text-xs font-semibold uppercase text-slate-500">NIT / Documento</dt><dd class="mt-1"><?= esc($customer['tax_id'] ?: '—') ?></dd></div>
+                <div><dt class="text-xs font-semibold uppercase text-slate-500">NRC / Registro</dt><dd class="mt-1"><?= esc($customer['registration_number'] ?: '—') ?></dd></div>
+                <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase text-slate-500">Actividad económica</dt><dd class="mt-1"><?= $economicActivity ? esc($economicActivity['code'] . ' · ' . $economicActivity['name']) : 'Sin asignar' ?></dd></div>
+            </dl>
+        </section>
+
         <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h4 class="text-lg font-bold">Información general</h4>
             <dl class="mt-5 grid gap-5 sm:grid-cols-2">
-                <div><dt class="text-xs font-semibold uppercase text-slate-500">Tipo</dt><dd class="mt-1"><?= $customer['customer_type'] === 'company' ? 'Empresa' : 'Persona natural' ?></dd></div>
-                <div><dt class="text-xs font-semibold uppercase text-slate-500">NIT / Documento</dt><dd class="mt-1"><?= esc($customer['tax_id'] ?: '—') ?></dd></div>
-                <div><dt class="text-xs font-semibold uppercase text-slate-500">NRC / Registro</dt><dd class="mt-1"><?= esc($customer['registration_number'] ?: '—') ?></dd></div>
                 <div><dt class="text-xs font-semibold uppercase text-slate-500">Correo</dt><dd class="mt-1"><?= esc($customer['email'] ?: '—') ?></dd></div>
                 <div><dt class="text-xs font-semibold uppercase text-slate-500">Teléfono</dt><dd class="mt-1"><?= esc($customer['phone'] ?: '—') ?></dd></div>
                 <div><dt class="text-xs font-semibold uppercase text-slate-500">Sitio web</dt><dd class="mt-1"><?= esc($customer['website'] ?: '—') ?></dd></div>
+                <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase text-slate-500">Observaciones</dt><dd class="mt-1 whitespace-pre-line"><?= esc($customer['notes'] ?: 'Sin observaciones.') ?></dd></div>
             </dl>
         </section>
 
