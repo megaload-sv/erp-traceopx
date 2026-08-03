@@ -6,8 +6,6 @@ use App\Models\ActivityEventModel;
 use App\Models\CustomerAddressModel;
 use App\Models\CustomerContactModel;
 use App\Models\CustomerModel;
-use App\Models\CustomerTaxpayerTypeModel;
-use App\Models\EconomicActivityModel;
 use App\Services\ActivityService;
 use CodeIgniter\HTTP\RedirectResponse;
 use RuntimeException;
@@ -73,11 +71,17 @@ class CustomersController extends BaseController
             throw new RuntimeException('Cliente no encontrado.');
         }
 
+        $db = db_connect();
+
         return view('customers/show', [
             'title' => $customer['business_name'],
             'customer' => $customer,
-            'taxpayerType' => $customer['customer_taxpayer_type_id'] ? (new CustomerTaxpayerTypeModel())->find($customer['customer_taxpayer_type_id']) : null,
-            'economicActivity' => $customer['economic_activity_id'] ? (new EconomicActivityModel())->find($customer['economic_activity_id']) : null,
+            'taxpayerType' => $this->catalogRow($db, 'mh_taxpayer_types', $customer['mh_taxpayer_type_id'] ?? null),
+            'economicActivity' => $this->catalogRow($db, 'mh_economic_activities', $customer['mh_economic_activity_id'] ?? null),
+            'taxCountry' => $this->catalogRow($db, 'mh_countries', $customer['tax_country_id'] ?? null),
+            'taxDepartment' => $this->catalogRow($db, 'mh_departments', $customer['tax_department_id'] ?? null),
+            'taxMunicipality' => $this->catalogRow($db, 'mh_municipalities', $customer['tax_municipality_id'] ?? null),
+            'taxDistrict' => $this->catalogRow($db, 'mh_districts', $customer['tax_district_id'] ?? null),
             'contacts' => (new CustomerContactModel())->forCustomer($id),
             'addresses' => (new CustomerAddressModel())->where('customer_id', $id)->findAll(),
             'activities' => (new ActivityEventModel())->forEntity('customer', $id),
@@ -117,20 +121,35 @@ class CustomersController extends BaseController
 
     private function formData(string $title, ?array $customer): array
     {
+        $db = db_connect();
+
         return [
             'title' => $title,
             'customer' => $customer,
-            'taxpayerTypes' => (new CustomerTaxpayerTypeModel())->activeOptions(),
-            'economicActivities' => (new EconomicActivityModel())->activeOptions(),
+            'taxpayerTypes' => $this->catalogOptions($db, 'mh_taxpayer_types'),
+            'economicActivities' => $this->catalogOptions($db, 'mh_economic_activities'),
+            'countries' => $this->catalogOptions($db, 'mh_countries'),
+            'departments' => $this->catalogOptions($db, 'mh_departments'),
+            'municipalities' => $db->table('mh_municipalities')->where('status', 1)->orderBy('department_code')->orderBy('name')->get()->getResultArray(),
+            'districts' => $db->table('mh_districts')->where('status', 1)->orderBy('department_code')->orderBy('name')->get()->getResultArray(),
         ];
     }
 
     private function customerPayload(): array
     {
+        $countryId = $this->nullableInt('tax_country_id');
+        $isElSalvador = $countryId !== null && $this->countryCode($countryId) === 'SV';
+
         return [
             'customer_type' => (string) $this->request->getPost('customer_type'),
-            'customer_taxpayer_type_id' => $this->nullableInt('customer_taxpayer_type_id'),
-            'economic_activity_id' => $this->nullableInt('economic_activity_id'),
+            'mh_taxpayer_type_id' => $this->nullableInt('mh_taxpayer_type_id'),
+            'mh_economic_activity_id' => $this->nullableInt('mh_economic_activity_id'),
+            'tax_country_id' => $countryId,
+            'tax_department_id' => $isElSalvador ? $this->nullableInt('tax_department_id') : null,
+            'tax_municipality_id' => $isElSalvador ? $this->nullableInt('tax_municipality_id') : null,
+            'tax_district_id' => $isElSalvador ? $this->nullableInt('tax_district_id') : null,
+            'foreign_state' => $isElSalvador ? null : $this->nullable('foreign_state'),
+            'foreign_city' => $isElSalvador ? null : $this->nullable('foreign_city'),
             'lifecycle_stage' => (string) ($this->request->getPost('lifecycle_stage') ?: 'potential'),
             'relationship_tier' => (string) ($this->request->getPost('relationship_tier') ?: 'standard'),
             'assigned_sales_user' => $this->nullable('assigned_sales_user'),
@@ -144,6 +163,22 @@ class CustomersController extends BaseController
             'website' => $this->nullable('website'),
             'notes' => $this->nullable('notes'),
         ];
+    }
+
+    private function catalogOptions($db, string $table): array
+    {
+        return $db->table($table)->where('status', 1)->orderBy('code')->get()->getResultArray();
+    }
+
+    private function catalogRow($db, string $table, ?int $id): ?array
+    {
+        return $id ? $db->table($table)->where('id', $id)->get()->getRowArray() : null;
+    }
+
+    private function countryCode(int $id): ?string
+    {
+        $row = db_connect()->table('mh_countries')->select('code')->where('id', $id)->get()->getRowArray();
+        return $row['code'] ?? null;
     }
 
     private function storeOptionalContact(int $customerId): void
@@ -198,14 +233,12 @@ class CustomersController extends BaseController
     private function nullable(string $field): ?string
     {
         $value = trim((string) $this->request->getPost($field));
-
         return $value === '' ? null : $value;
     }
 
     private function nullableInt(string $field): ?int
     {
         $value = trim((string) $this->request->getPost($field));
-
         return $value === '' ? null : (int) $value;
     }
 
@@ -214,14 +247,12 @@ class CustomersController extends BaseController
         $data = random_bytes(16);
         $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
         $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
-
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
     private function rollbackWithErrors($db, array $errors): RedirectResponse
     {
         $db->transRollback();
-
         return redirect()->back()->withInput()->with('errors', $errors);
     }
 }
