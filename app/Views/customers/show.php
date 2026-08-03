@@ -17,25 +17,40 @@ $catalogLabel = static fn (?array $row, string $empty = 'Sin asignar'): string =
             <p class="mt-5 text-sm font-bold uppercase tracking-[0.22em] text-cyan-400"><?= esc($customer['code']) ?></p>
             <h3 class="mt-2 text-3xl font-bold lg:text-4xl"><?= esc($customer['business_name']) ?></h3>
             <?php if ($customer['trade_name']): ?><p class="mt-2 text-slate-300"><?= esc($customer['trade_name']) ?></p><?php endif ?>
-            <div class="mt-5 flex flex-wrap gap-2"><span class="rounded-full bg-cyan-400/15 px-3 py-1 text-xs font-semibold text-cyan-200"><?= esc($stageLabels[$customer['lifecycle_stage']] ?? $customer['lifecycle_stage']) ?></span><span class="rounded-full bg-violet-400/15 px-3 py-1 text-xs font-semibold text-violet-200"><?= esc($tierLabels[$customer['relationship_tier']] ?? $customer['relationship_tier']) ?></span></div>
+            <div class="mt-5 flex flex-wrap gap-2">
+                <span class="rounded-full bg-cyan-400/15 px-3 py-1 text-xs font-semibold text-cyan-200"><?= esc($stageLabels[$customer['lifecycle_stage']] ?? '') ?></span>
+                <span class="rounded-full bg-violet-400/15 px-3 py-1 text-xs font-semibold text-violet-200"><?= esc($tierLabels[$customer['relationship_tier']] ?? '') ?></span>
+            </div>
         </div>
-        <div class="flex flex-wrap gap-3"><a href="<?= route_to('customers.contacts.create', $customer['id']) ?>" class="rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-white">Agregar contacto</a><a href="<?= route_to('customers.addresses.create', $customer['id']) ?>" class="rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-white">Agregar ubicación</a><a href="<?= route_to('customers.edit', $customer['id']) ?>" class="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-950">Editar perfil</a></div>
+        <div class="flex flex-wrap gap-3">
+            <a href="<?= route_to('customers.contacts.create', $customer['id']) ?>" class="rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-white">Agregar contacto</a>
+            <a href="<?= route_to('customers.addresses.create', $customer['id']) ?>" class="rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-white">Agregar ubicación</a>
+            <a href="<?= route_to('customers.edit', $customer['id']) ?>" class="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-950">Editar perfil</a>
+        </div>
     </div>
 </section>
 
 <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-    <?php foreach ([['Cotizaciones', $commercialSummary['quotations']], ['Órdenes activas', $commercialSummary['activeOrders']], ['Facturado', '$' . number_format($commercialSummary['invoiced'], 2)], ['Pendiente de cobro', '$' . number_format($commercialSummary['receivable'], 2)]] as [$label, $value]): ?><article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500"><?= esc($label) ?></p><p class="mt-3 text-3xl font-bold"><?= esc((string) $value) ?></p></article><?php endforeach ?>
+    <?php foreach ([['Cotizaciones', $commercialSummary['quotations']], ['Órdenes activas', $commercialSummary['activeOrders']], ['Facturado', '$' . number_format($commercialSummary['invoiced'], 2)], ['Pendiente de cobro', '$' . number_format($commercialSummary['receivable'], 2)]] as [$label, $value]): ?>
+        <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500"><?= esc($label) ?></p><p class="mt-3 text-3xl font-bold"><?= esc((string) $value) ?></p></article>
+    <?php endforeach ?>
 </div>
 
 <div class="grid gap-6 xl:grid-cols-3">
     <div class="space-y-6 xl:col-span-2">
         <section class="rounded-2xl border border-cyan-200 bg-cyan-50/40 p-6 shadow-sm">
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700">Relación comercial</p>
-            <div class="mt-5 grid gap-5 sm:grid-cols-2"><div><p class="text-xs font-semibold uppercase text-slate-500">Ejecutivo responsable</p><p class="mt-1 font-semibold"><?= esc($customer['assigned_sales_user'] ?: 'Sin asignar') ?></p></div><div><p class="text-xs font-semibold uppercase text-slate-500">Próximo seguimiento</p><p class="mt-1 font-semibold"><?= $customer['next_follow_up_date'] ? esc(date('d/m/Y', strtotime($customer['next_follow_up_date']))) : 'Sin programar' ?></p></div><div><p class="text-xs font-semibold uppercase text-slate-500">Etapa</p><p class="mt-1 font-semibold"><?= esc($stageLabels[$customer['lifecycle_stage']] ?? '') ?></p></div><div><p class="text-xs font-semibold uppercase text-slate-500">Categoría</p><p class="mt-1 font-semibold"><?= esc($tierLabels[$customer['relationship_tier']] ?? '') ?></p></div></div>
+            <div class="mt-5 grid gap-5 sm:grid-cols-2">
+                <div><p class="text-xs font-semibold uppercase text-slate-500">Ejecutivo responsable</p><p class="mt-1 font-semibold"><?= esc($customer['assigned_sales_user'] ?: 'Sin asignar') ?></p></div>
+                <div><p class="text-xs font-semibold uppercase text-slate-500">Próximo seguimiento</p><p class="mt-1 font-semibold"><?= $customer['next_follow_up_date'] ? esc(date('d/m/Y', strtotime($customer['next_follow_up_date']))) : 'Sin programar' ?></p></div>
+                <div><p class="text-xs font-semibold uppercase text-slate-500">Etapa</p><p class="mt-1 font-semibold"><?= esc($stageLabels[$customer['lifecycle_stage']] ?? '') ?></p></div>
+                <div><p class="text-xs font-semibold uppercase text-slate-500">Categoría</p><p class="mt-1 font-semibold"><?= esc($tierLabels[$customer['relationship_tier']] ?? '') ?></p></div>
+            </div>
         </section>
 
         <section class="rounded-2xl border border-violet-200 bg-violet-50/40 p-6 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-violet-700">Perfil fiscal</p><h4 class="mt-2 text-lg font-bold">Información tributaria</h4>
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-violet-700">Perfil fiscal</p>
+            <h4 class="mt-2 text-lg font-bold">Información tributaria</h4>
             <dl class="mt-5 grid gap-5 sm:grid-cols-2">
                 <div><dt class="text-xs font-semibold uppercase text-slate-500">Naturaleza</dt><dd class="mt-1"><?= $customer['customer_type'] === 'company' ? 'Empresa' : 'Persona natural' ?></dd></div>
                 <div><dt class="text-xs font-semibold uppercase text-slate-500">Tipo de contribuyente</dt><dd class="mt-1"><?= esc($catalogLabel($taxpayerType, 'Sin clasificar')) ?></dd></div>
@@ -43,22 +58,75 @@ $catalogLabel = static fn (?array $row, string $empty = 'Sin asignar'): string =
                 <div><dt class="text-xs font-semibold uppercase text-slate-500">NRC / Registro</dt><dd class="mt-1"><?= esc($customer['registration_number'] ?: '—') ?></dd></div>
                 <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase text-slate-500">Actividad económica</dt><dd class="mt-1"><?= esc($catalogLabel($economicActivity)) ?></dd></div>
             </dl>
-            <div class="mt-6 border-t border-violet-200 pt-5"><p class="text-xs font-semibold uppercase text-slate-500">Domicilio fiscal</p><div class="mt-3 grid gap-4 sm:grid-cols-2"><div><p class="text-sm text-slate-500">País</p><p class="font-semibold"><?= esc($catalogLabel($taxCountry)) ?></p></div><?php if (($taxCountry['code'] ?? '') === 'SV'): ?><div><p class="text-sm text-slate-500">Departamento</p><p class="font-semibold"><?= esc($catalogLabel($taxDepartment)) ?></p></div><div><p class="text-sm text-slate-500">Municipio</p><p class="font-semibold"><?= esc($catalogLabel($taxMunicipality)) ?></p></div><div><p class="text-sm text-slate-500">Distrito</p><p class="font-semibold"><?= esc($catalogLabel($taxDistrict)) ?></p></div><?php else: ?><div><p class="text-sm text-slate-500">Estado / Provincia</p><p class="font-semibold"><?= esc($customer['foreign_state'] ?: '—') ?></p></div><div><p class="text-sm text-slate-500">Ciudad</p><p class="font-semibold"><?= esc($customer['foreign_city'] ?: '—') ?></p></div><?php endif ?></div></div>
+            <div class="mt-6 border-t border-violet-200 pt-5">
+                <p class="text-xs font-semibold uppercase text-slate-500">Domicilio fiscal</p>
+                <div class="mt-3 grid gap-4 sm:grid-cols-2">
+                    <div><p class="text-sm text-slate-500">País</p><p class="font-semibold"><?= esc($catalogLabel($taxCountry)) ?></p></div>
+                    <?php if (($taxCountry['code'] ?? '') === 'SV'): ?>
+                        <div><p class="text-sm text-slate-500">Departamento</p><p class="font-semibold"><?= esc($catalogLabel($taxDepartment)) ?></p></div>
+                        <div><p class="text-sm text-slate-500">Municipio</p><p class="font-semibold"><?= esc($catalogLabel($taxMunicipality)) ?></p></div>
+                        <div><p class="text-sm text-slate-500">Distrito</p><p class="font-semibold"><?= esc($catalogLabel($taxDistrict)) ?></p></div>
+                    <?php else: ?>
+                        <div><p class="text-sm text-slate-500">Estado / Provincia</p><p class="font-semibold"><?= esc($customer['foreign_state'] ?: '—') ?></p></div>
+                        <div><p class="text-sm text-slate-500">Ciudad</p><p class="font-semibold"><?= esc($customer['foreign_city'] ?: '—') ?></p></div>
+                    <?php endif ?>
+                </div>
+            </div>
         </section>
 
-        <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h4 class="text-lg font-bold">Información general</h4><dl class="mt-5 grid gap-5 sm:grid-cols-2"><div><dt class="text-xs font-semibold uppercase text-slate-500">Correo</dt><dd class="mt-1"><?= esc($customer['email'] ?: '—') ?></dd></div><div><dt class="text-xs font-semibold uppercase text-slate-500">Teléfono</dt><dd class="mt-1"><?= esc($customer['phone'] ?: '—') ?></dd></div><div><dt class="text-xs font-semibold uppercase text-slate-500">Sitio web</dt><dd class="mt-1"><?= esc($customer['website'] ?: '—') ?></dd></div><div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase text-slate-500">Observaciones</dt><dd class="mt-1 whitespace-pre-line"><?= esc($customer['notes'] ?: 'Sin observaciones.') ?></dd></div></dl></section>
-
         <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-600">Relación humana</p><h4 class="mt-1 text-lg font-bold">Contactos del cliente</h4><p class="mt-1 text-sm text-slate-500">El principal será sugerido en cotizaciones y comunicaciones.</p></div><a href="<?= route_to('customers.contacts.create', $customer['id']) ?>" class="rounded-xl bg-slate-950 px-4 py-2.5 text-center text-sm font-semibold text-white">Agregar contacto</a></div>
-            <div class="mt-5 grid gap-4 md:grid-cols-2"><?php foreach ($contacts as $contact): ?><article class="rounded-2xl border <?= (int) $contact['is_primary'] === 1 ? 'border-cyan-300 bg-cyan-50/50' : 'border-slate-200 bg-slate-50' ?> p-5"><div class="flex items-start justify-between gap-3"><div><p class="font-bold"><?= esc($contact['name']) ?></p><p class="text-sm text-slate-500"><?= esc($contact['position'] ?: 'Sin cargo') ?></p></div><?php if ((int) $contact['is_primary'] === 1): ?><span class="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-800">Principal</span><?php endif ?></div><span class="mt-4 inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200"><?= esc($roleLabels[$contact['contact_role']] ?? 'Otro') ?></span><div class="mt-4 text-sm"><p><?= esc($contact['email'] ?: 'Sin correo') ?></p><p><?= esc($contact['phone'] ?: 'Sin teléfono') ?></p></div><div class="mt-5 flex flex-wrap gap-2"><a href="<?= route_to('customers.contacts.edit', $customer['id'], $contact['id']) ?>" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold">Editar</a><?php if ((int) $contact['is_primary'] !== 1 && (int) $contact['status'] === 1): ?><form method="post" action="<?= route_to('customers.contacts.primary', $customer['id'], $contact['id']) ?>"><?= csrf_field() ?><button class="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-semibold">Usar como principal</button></form><?php endif ?></div></article><?php endforeach ?><?php if ($contacts === []): ?><div class="rounded-2xl border border-dashed border-slate-300 p-8 text-center md:col-span-2"><p class="font-semibold">Este cliente aún no tiene contactos.</p><a href="<?= route_to('customers.contacts.create', $customer['id']) ?>" class="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white">Agregar primer contacto</a></div><?php endif ?></div>
+            <h4 class="text-lg font-bold">Información general</h4>
+            <dl class="mt-5 grid gap-5 sm:grid-cols-2">
+                <div><dt class="text-xs font-semibold uppercase text-slate-500">Correo</dt><dd class="mt-1"><?= esc($customer['email'] ?: '—') ?></dd></div>
+                <div><dt class="text-xs font-semibold uppercase text-slate-500">Teléfono</dt><dd class="mt-1"><?= esc($customer['phone'] ?: '—') ?></dd></div>
+                <div><dt class="text-xs font-semibold uppercase text-slate-500">Sitio web</dt><dd class="mt-1"><?= esc($customer['website'] ?: '—') ?></dd></div>
+                <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase text-slate-500">Observaciones</dt><dd class="mt-1 whitespace-pre-line"><?= esc($customer['notes'] ?: 'Sin observaciones.') ?></dd></div>
+            </dl>
         </section>
 
         <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-xs font-semibold uppercase tracking-[0.18em] text-violet-600">Cobertura y operación</p><h4 class="mt-1 text-lg font-bold">Sucursales y ubicaciones</h4></div><a href="<?= route_to('customers.addresses.create', $customer['id']) ?>" class="rounded-xl bg-slate-950 px-4 py-2.5 text-center text-sm font-semibold text-white">Agregar ubicación</a></div>
-            <div class="mt-5 grid gap-4 md:grid-cols-2"><?php foreach ($addresses as $address): ?><article class="rounded-2xl border <?= (int) $address['is_primary'] === 1 ? 'border-violet-300 bg-violet-50/50' : 'border-slate-200 bg-slate-50' ?> p-5"><div class="flex items-start justify-between gap-3"><div><p class="font-bold"><?= esc($address['label'] ?: ($addressTypeLabels[$address['address_type']] ?? 'Ubicación')) ?></p><p class="mt-1 text-xs font-semibold uppercase text-slate-500"><?= esc($addressTypeLabels[$address['address_type']] ?? $address['address_type']) ?></p></div><?php if ((int) $address['is_primary'] === 1): ?><span class="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-800">Principal</span><?php endif ?></div><p class="mt-4 text-sm"><?= esc($address['address_line']) ?></p><p class="mt-1 text-sm text-slate-500"><?= esc(implode(', ', array_filter([$address['municipality'], $address['department'], $address['country']]))) ?></p><div class="mt-5 flex flex-wrap gap-2"><a href="<?= route_to('customers.addresses.edit', $customer['id'], $address['id']) ?>" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold">Editar</a><?php if ((int) $address['is_primary'] !== 1 && (int) $address['status'] === 1): ?><form method="post" action="<?= route_to('customers.addresses.primary', $customer['id'], $address['id']) ?>"><?= csrf_field() ?><button class="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">Usar como principal</button></form><?php endif ?></div></article><?php endforeach ?><?php if ($addresses === []): ?><div class="rounded-2xl border border-dashed border-slate-300 p-8 text-center md:col-span-2"><p class="font-semibold">Este cliente aún no tiene ubicaciones.</p><a href="<?= route_to('customers.addresses.create', $customer['id']) ?>" class="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white">Agregar primera ubicación</a></div><?php endif ?></div>
+            <div class="flex items-center justify-between gap-4"><div><p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-600">Relación humana</p><h4 class="mt-1 text-lg font-bold">Contactos del cliente</h4></div><a href="<?= route_to('customers.contacts.create', $customer['id']) ?>" class="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white">Agregar contacto</a></div>
+            <div class="mt-5 grid gap-4 md:grid-cols-2">
+                <?php foreach ($contacts as $contact): ?>
+                    <article class="rounded-2xl border <?= (int) $contact['is_primary'] === 1 ? 'border-cyan-300 bg-cyan-50/50' : 'border-slate-200 bg-slate-50' ?> p-5">
+                        <div class="flex items-start justify-between gap-3"><div><p class="font-bold"><?= esc($contact['name']) ?></p><p class="text-sm text-slate-500"><?= esc($contact['position'] ?: 'Sin cargo') ?></p></div><?php if ((int) $contact['is_primary'] === 1): ?><span class="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-800">Principal</span><?php endif ?></div>
+                        <span class="mt-4 inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200"><?= esc($roleLabels[$contact['contact_role']] ?? 'Otro') ?></span>
+                        <div class="mt-4 text-sm"><p><?= esc($contact['email'] ?: 'Sin correo') ?></p><p><?= esc($contact['phone'] ?: 'Sin teléfono') ?></p></div>
+                        <div class="mt-5 flex flex-wrap gap-2"><a href="<?= route_to('customers.contacts.edit', $customer['id'], $contact['id']) ?>" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold">Editar</a><?php if ((int) $contact['is_primary'] !== 1 && (int) $contact['status'] === 1): ?><form method="post" action="<?= route_to('customers.contacts.primary', $customer['id'], $contact['id']) ?>"><?= csrf_field() ?><button class="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-semibold">Usar como principal</button></form><?php endif ?></div>
+                    </article>
+                <?php endforeach ?>
+                <?php if ($contacts === []): ?><div class="rounded-2xl border border-dashed border-slate-300 p-8 text-center md:col-span-2"><p class="font-semibold">Este cliente aún no tiene contactos.</p><a href="<?= route_to('customers.contacts.create', $customer['id']) ?>" class="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white">Agregar primer contacto</a></div><?php endif ?>
+            </div>
+        </section>
+
+        <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-4"><div><p class="text-xs font-semibold uppercase tracking-[0.18em] text-violet-600">Cobertura y operación</p><h4 class="mt-1 text-lg font-bold">Sucursales y ubicaciones</h4></div><a href="<?= route_to('customers.addresses.create', $customer['id']) ?>" class="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white">Agregar ubicación</a></div>
+            <div class="mt-5 grid gap-4 md:grid-cols-2">
+                <?php foreach ($addresses as $address): ?>
+                    <?php
+                    $territory = ($address['country_code'] ?? '') === 'SV'
+                        ? array_filter([
+                            ($address['district_code'] ?? null) ? $address['district_code'] . ' - ' . $address['district_name'] : null,
+                            ($address['municipality_code'] ?? null) ? $address['municipality_code'] . ' - ' . $address['municipality_name'] : null,
+                            ($address['department_code'] ?? null) ? $address['department_code'] . ' - ' . $address['department_name'] : null,
+                            ($address['country_code'] ?? null) ? $address['country_code'] . ' - ' . $address['country_name'] : null,
+                        ])
+                        : array_filter([$address['foreign_city'] ?? null, $address['foreign_state'] ?? null, ($address['country_code'] ?? null) ? $address['country_code'] . ' - ' . $address['country_name'] : null]);
+                    ?>
+                    <article class="rounded-2xl border <?= (int) $address['is_primary'] === 1 ? 'border-violet-300 bg-violet-50/50' : 'border-slate-200 bg-slate-50' ?> p-5">
+                        <div class="flex items-start justify-between gap-3"><div><p class="font-bold"><?= esc($address['label'] ?: ($addressTypeLabels[$address['address_type']] ?? 'Ubicación')) ?></p><p class="mt-1 text-xs font-semibold uppercase text-slate-500"><?= esc($addressTypeLabels[$address['address_type']] ?? $address['address_type']) ?></p></div><?php if ((int) $address['is_primary'] === 1): ?><span class="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-800">Principal</span><?php endif ?></div>
+                        <p class="mt-4 text-sm"><?= esc($address['address_line']) ?></p><p class="mt-1 text-sm text-slate-500"><?= esc(implode(', ', $territory)) ?></p>
+                        <div class="mt-5 flex flex-wrap gap-2"><a href="<?= route_to('customers.addresses.edit', $customer['id'], $address['id']) ?>" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold">Editar</a><?php if ((int) $address['is_primary'] !== 1 && (int) $address['status'] === 1): ?><form method="post" action="<?= route_to('customers.addresses.primary', $customer['id'], $address['id']) ?>"><?= csrf_field() ?><button class="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">Usar como principal</button></form><?php endif ?></div>
+                    </article>
+                <?php endforeach ?>
+                <?php if ($addresses === []): ?><div class="rounded-2xl border border-dashed border-slate-300 p-8 text-center md:col-span-2"><p class="font-semibold">Este cliente aún no tiene ubicaciones.</p><a href="<?= route_to('customers.addresses.create', $customer['id']) ?>" class="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white">Agregar primera ubicación</a></div><?php endif ?>
+            </div>
         </section>
     </div>
 
-    <aside class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><p class="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-600">Bitácora funcional</p><h4 class="mt-2 text-xl font-bold">Historia del cliente</h4><div class="mt-6 space-y-6"><?php foreach ($activities as $activity): ?><article class="relative border-l-2 border-cyan-500 pl-5"><span class="absolute -left-[7px] top-1 h-3 w-3 rounded-full bg-cyan-500"></span><p class="font-semibold"><?= esc($activity['title']) ?></p><?php if ($activity['description']): ?><p class="mt-1 text-sm text-slate-600"><?= esc($activity['description']) ?></p><?php endif ?><p class="mt-2 text-xs text-slate-500"><?= esc(date('d/m/Y H:i', strtotime($activity['occurred_at']))) ?> · <?= esc($activity['actor_user']) ?></p></article><?php endforeach ?><?php if ($activities === []): ?><p class="text-sm text-slate-500">Aún no existen eventos funcionales.</p><?php endif ?></div></aside>
+    <aside class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-600">Bitácora funcional</p><h4 class="mt-2 text-xl font-bold">Historia del cliente</h4>
+        <div class="mt-6 space-y-6"><?php foreach ($activities as $activity): ?><article class="relative border-l-2 border-cyan-500 pl-5"><span class="absolute -left-[7px] top-1 h-3 w-3 rounded-full bg-cyan-500"></span><p class="font-semibold"><?= esc($activity['title']) ?></p><?php if ($activity['description']): ?><p class="mt-1 text-sm text-slate-600"><?= esc($activity['description']) ?></p><?php endif ?><p class="mt-2 text-xs text-slate-500"><?= esc(date('d/m/Y H:i', strtotime($activity['occurred_at']))) ?> · <?= esc($activity['actor_user']) ?></p></article><?php endforeach ?><?php if ($activities === []): ?><p class="text-sm text-slate-500">Aún no existen eventos funcionales.</p><?php endif ?></div>
+    </aside>
 </div>
 <?= $this->endSection() ?>
