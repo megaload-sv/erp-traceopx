@@ -33,12 +33,17 @@ class CustomersController extends BaseController
 
     public function store(): RedirectResponse
     {
+        $payload = $this->customerPayload();
+        if (($error = $this->geographyError($payload)) !== null) {
+            return redirect()->back()->withInput()->with('errors', [$error]);
+        }
+
         $db = db_connect();
         $db->transBegin();
 
         try {
             $customers = new CustomerModel();
-            $customerId = $customers->insert($this->customerPayload() + [
+            $customerId = $customers->insert($payload + [
                 'uuid' => $this->uuidV4(),
                 'code' => $customers->nextCode(),
                 'status' => 1,
@@ -50,8 +55,7 @@ class CustomersController extends BaseController
 
             $customerId = (int) $customerId;
             $this->storeOptionalContact($customerId);
-            $this->storeOptionalAddress($customerId);
-
+            $this->storeOptionalAddress($customerId, $payload);
             (new ActivityService())->record('customer', $customerId, 'customer.created', 'Cliente creado', 'Se registró el cliente en ERP TraceOPX.');
             $db->transCommit();
 
@@ -59,7 +63,6 @@ class CustomersController extends BaseController
         } catch (Throwable $e) {
             $db->transRollback();
             log_message('error', 'Error creando cliente: {message}', ['message' => $e->getMessage()]);
-
             return redirect()->back()->withInput()->with('error', 'No fue posible crear el cliente.');
         }
     }
@@ -72,7 +75,6 @@ class CustomersController extends BaseController
         }
 
         $db = db_connect();
-
         return view('customers/show', [
             'title' => $customer['business_name'],
             'customer' => $customer,
@@ -83,7 +85,7 @@ class CustomersController extends BaseController
             'taxMunicipality' => $this->catalogRow($db, 'mh_municipalities', $customer['tax_municipality_id'] ?? null),
             'taxDistrict' => $this->catalogRow($db, 'mh_districts', $customer['tax_district_id'] ?? null),
             'contacts' => (new CustomerContactModel())->forCustomer($id),
-            'addresses' => (new CustomerAddressModel())->where('customer_id', $id)->findAll(),
+            'addresses' => (new CustomerAddressModel())->forCustomer($id),
             'activities' => (new ActivityEventModel())->forEntity('customer', $id),
             'commercialSummary' => ['quotations' => 0, 'activeOrders' => 0, 'invoiced' => 0.00, 'receivable' => 0.00],
         ]);
@@ -95,7 +97,6 @@ class CustomersController extends BaseController
         if ($customer === null) {
             throw new RuntimeException('Cliente no encontrado.');
         }
-
         return view('customers/form', $this->formData('Editar cliente', $customer));
     }
 
@@ -106,23 +107,22 @@ class CustomersController extends BaseController
             return redirect()->to(route_to('customers.index'))->with('error', 'Cliente no encontrado.');
         }
 
-        $updated = $model->update($id, $this->customerPayload() + [
-            'status' => (int) $this->request->getPost('status'),
-        ]);
+        $payload = $this->customerPayload();
+        if (($error = $this->geographyError($payload)) !== null) {
+            return redirect()->back()->withInput()->with('errors', [$error]);
+        }
 
-        if (! $updated) {
+        if (! $model->update($id, $payload + ['status' => (int) $this->request->getPost('status')])) {
             return redirect()->back()->withInput()->with('errors', $model->errors());
         }
 
         (new ActivityService())->record('customer', $id, 'customer.updated', 'Cliente actualizado', 'Se actualizaron los datos generales, fiscales y comerciales del cliente.');
-
         return redirect()->to(route_to('customers.show', $id))->with('success', 'Cliente actualizado correctamente.');
     }
 
     private function formData(string $title, ?array $customer): array
     {
         $db = db_connect();
-
         return [
             'title' => $title,
             'customer' => $customer,
@@ -165,28 +165,40 @@ class CustomersController extends BaseController
         ];
     }
 
-    private function catalogOptions($db, string $table): array
+    private function geographyError(array $payload): ?string
     {
-        return $db->table($table)->where('status', 1)->orderBy('code')->get()->getResultArray();
-    }
+        if (empty($payload['tax_country_id'])) {
+            return 'Debes seleccionar el país fiscal del cliente.';
+        }
 
-    private function catalogRow($db, string $table, ?int $id): ?array
-    {
-        return $id ? $db->table($table)->where('id', $id)->get()->getRowArray() : null;
-    }
+        $db = db_connect();
+        $country = $db->table('mh_countries')->where(['id' => $payload['tax_country_id'], 'status' => 1])->get()->getRowArray();
+        if ($country === null) {
+            return 'El país fiscal seleccionado no es válido.';
+        }
+        if ($country['code'] !== 'SV') {
+            return null;
+        }
+        if (empty($payload['tax_department_id']) || empty($payload['tax_municipality_id']) || empty($payload['tax_district_id'])) {
+            return 'Para clientes de El Salvador debes seleccionar departamento, municipio y distrito.';
+        }
 
-    private function countryCode(int $id): ?string
-    {
-        $row = db_connect()->table('mh_countries')->select('code')->where('id', $id)->get()->getRowArray();
-        return $row['code'] ?? null;
+        $department = $db->table('mh_departments')->where(['id' => $payload['tax_department_id'], 'status' => 1])->get()->getRowArray();
+        $municipality = $db->table('mh_municipalities')->where(['id' => $payload['tax_municipality_id'], 'status' => 1])->get()->getRowArray();
+        $district = $db->table('mh_districts')->where(['id' => $payload['tax_district_id'], 'status' => 1])->get()->getRowArray();
+        if ($department === null || $municipality === null || $district === null) {
+            return 'La división territorial fiscal seleccionada no es válida.';
+        }
+        if ($municipality['department_code'] !== $department['code'] || $district['department_code'] !== $department['code']) {
+            return 'El municipio y el distrito fiscal deben pertenecer al departamento seleccionado.';
+        }
+        return null;
     }
 
     private function storeOptionalContact(int $customerId): void
     {
         $name = trim((string) $this->request->getPost('contact_name'));
-        if ($name === '') {
-            return;
-        }
+        if ($name === '') return;
 
         $model = new CustomerContactModel();
         if ($model->insert([
@@ -201,16 +213,13 @@ class CustomersController extends BaseController
         ]) === false) {
             throw new RuntimeException(implode(' ', $model->errors()));
         }
-
         (new ActivityService())->record('customer', $customerId, 'customer.contact_added', 'Contacto principal agregado', "Se agregó a {$name} como contacto comercial principal.");
     }
 
-    private function storeOptionalAddress(int $customerId): void
+    private function storeOptionalAddress(int $customerId, array $customerPayload): void
     {
         $address = trim((string) $this->request->getPost('address_line'));
-        if ($address === '') {
-            return;
-        }
+        if ($address === '') return;
 
         $model = new CustomerAddressModel();
         if ($model->insert([
@@ -218,16 +227,34 @@ class CustomersController extends BaseController
             'label' => 'Dirección fiscal principal',
             'address_type' => 'fiscal',
             'address_line' => $address,
-            'municipality' => $this->nullable('municipality'),
-            'department' => $this->nullable('department'),
-            'country' => $this->nullable('country') ?? 'El Salvador',
+            'country_id' => $customerPayload['tax_country_id'],
+            'department_id' => $customerPayload['tax_department_id'],
+            'municipality_id' => $customerPayload['tax_municipality_id'],
+            'district_id' => $customerPayload['tax_district_id'],
+            'foreign_state' => $customerPayload['foreign_state'],
+            'foreign_city' => $customerPayload['foreign_city'],
             'is_primary' => 1,
             'status' => 1,
         ]) === false) {
             throw new RuntimeException(implode(' ', $model->errors()));
         }
-
         (new ActivityService())->record('customer', $customerId, 'customer.address_added', 'Dirección fiscal agregada', 'Se registró la dirección fiscal principal.');
+    }
+
+    private function catalogOptions($db, string $table): array
+    {
+        return $db->table($table)->where('status', 1)->orderBy('code')->get()->getResultArray();
+    }
+
+    private function catalogRow($db, string $table, ?int $id): ?array
+    {
+        return $id ? $db->table($table)->where('id', $id)->get()->getRowArray() : null;
+    }
+
+    private function countryCode(int $id): ?string
+    {
+        $row = db_connect()->table('mh_countries')->select('code')->where(['id' => $id, 'status' => 1])->get()->getRowArray();
+        return $row['code'] ?? null;
     }
 
     private function nullable(string $field): ?string
@@ -238,8 +265,8 @@ class CustomersController extends BaseController
 
     private function nullableInt(string $field): ?int
     {
-        $value = trim((string) $this->request->getPost($field));
-        return $value === '' ? null : (int) $value;
+        $value = (int) $this->request->getPost($field);
+        return $value > 0 ? $value : null;
     }
 
     private function uuidV4(): string
