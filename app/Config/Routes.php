@@ -33,5 +33,11 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('(:num)/contacts/(:num)/edit', 'CustomerContactsController::edit/$1/$2', ['as' => 'customers.contacts.edit']);
         $routes->post('(:num)/contacts/(:num)', 'CustomerContactsController::update/$1/$2', ['as' => 'customers.contacts.update']);
         $routes->post('(:num)/contacts/(:num)/primary', 'CustomerContactsController::makePrimary/$1/$2', ['as' => 'customers.contacts.primary']);
+
+        $routes->get('(:num)/addresses/create', 'CustomerAddressesController::create/$1', ['as' => 'customers.addresses.create']);
+        $routes->post('(:num)/addresses', 'CustomerAddressesController::store/$1', ['as' => 'customers.addresses.store']);
+        $routes->get('(:num)/addresses/(:num)/edit', 'CustomerAddressesController::edit/$1/$2', ['as' => 'customers.addresses.edit']);
+        $routes->post('(:num)/addresses/(:num)', 'CustomerAddressesController::update/$1/$2', ['as' => 'customers.addresses.update']);
+        $routes->post('(:num)/addresses/(:num)/primary', 'CustomerAddressesController::makePrimary/$1/$2', ['as' => 'customers.addresses.primary']);
     });
 });
