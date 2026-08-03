@@ -91,11 +91,11 @@ class SystemController extends BaseController
 
             $seeder = Database::seeder();
             $seeder->call('SecuritySeeder');
-            $seeder->call('CustomerFiscalCatalogSeeder');
+            $seeder->call('MhFiscalCatalogSeeder');
 
             return $this->response->setJSON([
                 'success' => true,
-                'message' => 'Configuración inicial completada: migraciones, seguridad y catálogos fiscales ejecutados.',
+                'message' => 'Configuración inicial completada: migraciones, seguridad y catálogos oficiales de Hacienda ejecutados.',
             ]);
         } catch (Throwable $e) {
             log_message('error', 'Error ejecutando configuración inicial: {message}', ['message' => $e->getMessage()]);
