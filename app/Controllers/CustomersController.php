@@ -6,6 +6,8 @@ use App\Models\ActivityEventModel;
 use App\Models\CustomerAddressModel;
 use App\Models\CustomerContactModel;
 use App\Models\CustomerModel;
+use App\Models\CustomerTaxpayerTypeModel;
+use App\Models\EconomicActivityModel;
 use App\Services\ActivityService;
 use CodeIgniter\HTTP\RedirectResponse;
 use RuntimeException;
@@ -28,7 +30,7 @@ class CustomersController extends BaseController
 
     public function create(): string
     {
-        return view('customers/form', ['title' => 'Nuevo cliente', 'customer' => null]);
+        return view('customers/form', $this->formData('Nuevo cliente', null));
     }
 
     public function store(): RedirectResponse
@@ -38,22 +40,9 @@ class CustomersController extends BaseController
 
         try {
             $customers = new CustomerModel();
-            $customerId = $customers->insert([
+            $customerId = $customers->insert($this->customerPayload() + [
                 'uuid' => $this->uuidV4(),
                 'code' => $customers->nextCode(),
-                'customer_type' => (string) $this->request->getPost('customer_type'),
-                'lifecycle_stage' => (string) ($this->request->getPost('lifecycle_stage') ?: 'potential'),
-                'relationship_tier' => (string) ($this->request->getPost('relationship_tier') ?: 'standard'),
-                'assigned_sales_user' => $this->nullable('assigned_sales_user'),
-                'next_follow_up_date' => $this->nullable('next_follow_up_date'),
-                'business_name' => trim((string) $this->request->getPost('business_name')),
-                'trade_name' => $this->nullable('trade_name'),
-                'tax_id' => $this->nullable('tax_id'),
-                'registration_number' => $this->nullable('registration_number'),
-                'email' => $this->nullable('email'),
-                'phone' => $this->nullable('phone'),
-                'website' => $this->nullable('website'),
-                'notes' => $this->nullable('notes'),
                 'status' => 1,
             ], true);
 
@@ -87,6 +76,8 @@ class CustomersController extends BaseController
         return view('customers/show', [
             'title' => $customer['business_name'],
             'customer' => $customer,
+            'taxpayerType' => $customer['customer_taxpayer_type_id'] ? (new CustomerTaxpayerTypeModel())->find($customer['customer_taxpayer_type_id']) : null,
+            'economicActivity' => $customer['economic_activity_id'] ? (new EconomicActivityModel())->find($customer['economic_activity_id']) : null,
             'contacts' => (new CustomerContactModel())->forCustomer($id),
             'addresses' => (new CustomerAddressModel())->where('customer_id', $id)->findAll(),
             'activities' => (new ActivityEventModel())->forEntity('customer', $id),
@@ -101,7 +92,7 @@ class CustomersController extends BaseController
             throw new RuntimeException('Cliente no encontrado.');
         }
 
-        return view('customers/form', ['title' => 'Editar cliente', 'customer' => $customer]);
+        return view('customers/form', $this->formData('Editar cliente', $customer));
     }
 
     public function update(int $id): RedirectResponse
@@ -111,10 +102,37 @@ class CustomersController extends BaseController
             return redirect()->to(route_to('customers.index'))->with('error', 'Cliente no encontrado.');
         }
 
-        $updated = $model->update($id, [
+        $updated = $model->update($id, $this->customerPayload() + [
+            'status' => (int) $this->request->getPost('status'),
+        ]);
+
+        if (! $updated) {
+            return redirect()->back()->withInput()->with('errors', $model->errors());
+        }
+
+        (new ActivityService())->record('customer', $id, 'customer.updated', 'Cliente actualizado', 'Se actualizaron los datos generales, fiscales y comerciales del cliente.');
+
+        return redirect()->to(route_to('customers.show', $id))->with('success', 'Cliente actualizado correctamente.');
+    }
+
+    private function formData(string $title, ?array $customer): array
+    {
+        return [
+            'title' => $title,
+            'customer' => $customer,
+            'taxpayerTypes' => (new CustomerTaxpayerTypeModel())->activeOptions(),
+            'economicActivities' => (new EconomicActivityModel())->activeOptions(),
+        ];
+    }
+
+    private function customerPayload(): array
+    {
+        return [
             'customer_type' => (string) $this->request->getPost('customer_type'),
-            'lifecycle_stage' => (string) $this->request->getPost('lifecycle_stage'),
-            'relationship_tier' => (string) $this->request->getPost('relationship_tier'),
+            'customer_taxpayer_type_id' => $this->nullableInt('customer_taxpayer_type_id'),
+            'economic_activity_id' => $this->nullableInt('economic_activity_id'),
+            'lifecycle_stage' => (string) ($this->request->getPost('lifecycle_stage') ?: 'potential'),
+            'relationship_tier' => (string) ($this->request->getPost('relationship_tier') ?: 'standard'),
             'assigned_sales_user' => $this->nullable('assigned_sales_user'),
             'next_follow_up_date' => $this->nullable('next_follow_up_date'),
             'business_name' => trim((string) $this->request->getPost('business_name')),
@@ -125,16 +143,7 @@ class CustomersController extends BaseController
             'phone' => $this->nullable('phone'),
             'website' => $this->nullable('website'),
             'notes' => $this->nullable('notes'),
-            'status' => (int) $this->request->getPost('status'),
-        ]);
-
-        if (! $updated) {
-            return redirect()->back()->withInput()->with('errors', $model->errors());
-        }
-
-        (new ActivityService())->record('customer', $id, 'customer.updated', 'Cliente actualizado', 'Se actualizaron los datos generales y comerciales del cliente.');
-
-        return redirect()->to(route_to('customers.show', $id))->with('success', 'Cliente actualizado correctamente.');
+        ];
     }
 
     private function storeOptionalContact(int $customerId): void
@@ -171,6 +180,7 @@ class CustomersController extends BaseController
         $model = new CustomerAddressModel();
         if ($model->insert([
             'customer_id' => $customerId,
+            'label' => 'Dirección fiscal principal',
             'address_type' => 'fiscal',
             'address_line' => $address,
             'municipality' => $this->nullable('municipality'),
@@ -190,6 +200,13 @@ class CustomersController extends BaseController
         $value = trim((string) $this->request->getPost($field));
 
         return $value === '' ? null : $value;
+    }
+
+    private function nullableInt(string $field): ?int
+    {
+        $value = trim((string) $this->request->getPost($field));
+
+        return $value === '' ? null : (int) $value;
     }
 
     private function uuidV4(): string
