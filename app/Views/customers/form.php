@@ -7,23 +7,32 @@
 <div class="mb-7">
     <a href="<?= route_to('customers.index') ?>" class="text-sm font-semibold text-cyan-700">← Volver a clientes</a>
     <h3 class="mt-3 text-3xl font-bold text-slate-950"><?= $editing ? 'Editar cliente' : 'Nuevo cliente' ?></h3>
-    <p class="mt-2 text-slate-600">Registra lo esencial y define desde el inicio cómo queremos desarrollar esta relación comercial.</p>
+    <p class="mt-2 text-slate-600">Registra lo esencial y define desde el inicio su perfil fiscal y la relación comercial.</p>
 </div>
 
 <form method="post" action="<?= $editing ? route_to('customers.update', $customer['id']) : route_to('customers.store') ?>" class="space-y-6">
     <?= csrf_field() ?>
+
     <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div><p class="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-600">Identidad</p><h4 class="mt-2 text-lg font-bold text-slate-950">Información general</h4></div>
         <div class="mt-5 grid gap-5 md:grid-cols-2">
-            <label><span class="mb-2 block text-sm font-semibold text-slate-700">Tipo</span><select name="customer_type" class="w-full rounded-xl border border-slate-300 px-4 py-3"><option value="company" <?= old('customer_type', $customer['customer_type'] ?? 'company') === 'company' ? 'selected' : '' ?>>Empresa</option><option value="person" <?= old('customer_type', $customer['customer_type'] ?? '') === 'person' ? 'selected' : '' ?>>Persona natural</option></select></label>
+            <label><span class="mb-2 block text-sm font-semibold text-slate-700">Naturaleza del cliente</span><select name="customer_type" class="w-full rounded-xl border border-slate-300 px-4 py-3"><option value="company" <?= old('customer_type', $customer['customer_type'] ?? 'company') === 'company' ? 'selected' : '' ?>>Empresa</option><option value="person" <?= old('customer_type', $customer['customer_type'] ?? '') === 'person' ? 'selected' : '' ?>>Persona natural</option></select></label>
             <label><span class="mb-2 block text-sm font-semibold text-slate-700">Razón social o nombre *</span><input required name="business_name" value="<?= esc(old('business_name', $customer['business_name'] ?? '')) ?>" class="w-full rounded-xl border border-slate-300 px-4 py-3"></label>
             <label><span class="mb-2 block text-sm font-semibold text-slate-700">Nombre comercial</span><input name="trade_name" value="<?= esc(old('trade_name', $customer['trade_name'] ?? '')) ?>" class="w-full rounded-xl border border-slate-300 px-4 py-3"></label>
-            <label><span class="mb-2 block text-sm font-semibold text-slate-700">NIT / Documento</span><input name="tax_id" value="<?= esc(old('tax_id', $customer['tax_id'] ?? '')) ?>" class="w-full rounded-xl border border-slate-300 px-4 py-3"></label>
-            <label><span class="mb-2 block text-sm font-semibold text-slate-700">NRC / Registro</span><input name="registration_number" value="<?= esc(old('registration_number', $customer['registration_number'] ?? '')) ?>" class="w-full rounded-xl border border-slate-300 px-4 py-3"></label>
             <label><span class="mb-2 block text-sm font-semibold text-slate-700">Correo general</span><input type="email" name="email" value="<?= esc(old('email', $customer['email'] ?? '')) ?>" class="w-full rounded-xl border border-slate-300 px-4 py-3"></label>
             <label><span class="mb-2 block text-sm font-semibold text-slate-700">Teléfono general</span><input name="phone" value="<?= esc(old('phone', $customer['phone'] ?? '')) ?>" class="w-full rounded-xl border border-slate-300 px-4 py-3"></label>
             <label><span class="mb-2 block text-sm font-semibold text-slate-700">Sitio web</span><input name="website" value="<?= esc(old('website', $customer['website'] ?? '')) ?>" class="w-full rounded-xl border border-slate-300 px-4 py-3"></label>
             <?php if ($editing): ?><label><span class="mb-2 block text-sm font-semibold text-slate-700">Registro habilitado</span><select name="status" class="w-full rounded-xl border border-slate-300 px-4 py-3"><option value="1" <?= (int) old('status', $customer['status']) === 1 ? 'selected' : '' ?>>Sí</option><option value="0" <?= (int) old('status', $customer['status']) === 0 ? 'selected' : '' ?>>No</option></select></label><?php endif ?>
+        </div>
+    </section>
+
+    <section class="rounded-2xl border border-violet-200 bg-violet-50/40 p-6 shadow-sm">
+        <div><p class="text-xs font-semibold uppercase tracking-[0.2em] text-violet-700">Perfil fiscal</p><h4 class="mt-2 text-lg font-bold text-slate-950">Clasificación tributaria</h4><p class="mt-1 text-sm text-slate-600">Estos datos serán reutilizados posteriormente en cotizaciones y Facturación Electrónica.</p></div>
+        <div class="mt-5 grid gap-5 md:grid-cols-2">
+            <label><span class="mb-2 block text-sm font-semibold text-slate-700">Tipo de contribuyente</span><select name="customer_taxpayer_type_id" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3"><option value="">Seleccionar</option><?php foreach ($taxpayerTypes as $type): ?><option value="<?= esc($type['id']) ?>" <?= (string) old('customer_taxpayer_type_id', $customer['customer_taxpayer_type_id'] ?? '') === (string) $type['id'] ? 'selected' : '' ?>><?= esc($type['name']) ?></option><?php endforeach ?></select></label>
+            <label><span class="mb-2 block text-sm font-semibold text-slate-700">Actividad económica</span><select name="economic_activity_id" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3"><option value="">Seleccionar actividad</option><?php foreach ($economicActivities as $activity): ?><option value="<?= esc($activity['id']) ?>" <?= (string) old('economic_activity_id', $customer['economic_activity_id'] ?? '') === (string) $activity['id'] ? 'selected' : '' ?>><?= esc($activity['code'] . ' · ' . $activity['name']) ?></option><?php endforeach ?></select><?php if ($economicActivities === []): ?><p class="mt-2 text-xs text-amber-700">El catálogo oficial de actividades económicas aún debe cargarse mediante el seeder.</p><?php endif ?></label>
+            <label><span class="mb-2 block text-sm font-semibold text-slate-700">NIT / Documento</span><input name="tax_id" value="<?= esc(old('tax_id', $customer['tax_id'] ?? '')) ?>" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3"></label>
+            <label><span class="mb-2 block text-sm font-semibold text-slate-700">NRC / Registro</span><input name="registration_number" value="<?= esc(old('registration_number', $customer['registration_number'] ?? '')) ?>" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3"></label>
         </div>
     </section>
 
