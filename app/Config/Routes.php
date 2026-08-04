@@ -20,6 +20,12 @@ $routes->group('system', static function (RouteCollection $routes): void {
 $routes->group('', ['filter' => 'auth'], static function (RouteCollection $routes): void {
     $routes->get('dashboard', 'DashboardController::index', ['as' => 'dashboard']);
 
+    $routes->group('commercial-requests', static function (RouteCollection $routes): void {
+        $routes->get('', 'CommercialRequestsController::index', ['as' => 'commercial_requests.index']);
+        $routes->get('create', 'CommercialRequestsController::create', ['as' => 'commercial_requests.create']);
+        $routes->post('', 'CommercialRequestsController::store', ['as' => 'commercial_requests.store']);
+    });
+
     $routes->group('customers', static function (RouteCollection $routes): void {
         $routes->get('', 'CustomersController::index', ['as' => 'customers.index']);
         $routes->get('create', 'CustomersController::create', ['as' => 'customers.create']);
