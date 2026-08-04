@@ -7,7 +7,7 @@ class CommercialRequestModel extends BaseModel
     protected $table = 'commercial_requests';
     protected $primaryKey = 'id';
     protected $allowedFields = [
-        'uuid','code','channel','source_detail','customer_id','contact_id','sla_policy_id','assigned_user_id',
+        'uuid','code','channel','source_detail','customer_id','contact_id','source_conversation_id','sla_policy_id','assigned_user_id',
         'subject','description','requested_services','priority','status','sla_status','escalation_level',
         'received_at','first_response_due_at','first_responded_at','quotation_due_at','next_follow_up_at',
         'waiting_reason','closed_at','entry_user','modify_user','delete_user',
