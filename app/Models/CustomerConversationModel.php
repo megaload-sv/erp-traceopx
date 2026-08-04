@@ -7,7 +7,7 @@ class CustomerConversationModel extends BaseModel
     protected $table = 'customer_conversations';
     protected $primaryKey = 'id';
     protected $allowedFields = [
-        'uuid', 'code', 'primary_channel', 'customer_id', 'contact_id', 'assigned_user_id',
+        'uuid', 'code', 'primary_channel', 'customer_id', 'contact_id', 'assigned_user_id', 'sla_policy_id',
         'subject', 'summary', 'attention_status', 'priority', 'started_at',
         'first_response_due_at', 'first_responded_at', 'next_follow_up_at',
         'qualified_at', 'closed_at', 'commercial_request_id', 'status',
@@ -44,10 +44,11 @@ class CustomerConversationModel extends BaseModel
 
     public function detail(int $id): ?array
     {
-        $row = $this->select('customer_conversations.*, customers.business_name, customer_contacts.name AS contact_name, users.name AS assigned_user_name')
+        $row = $this->select('customer_conversations.*, customers.business_name, customer_contacts.name AS contact_name, users.name AS assigned_user_name, commercial_requests.code AS commercial_request_code')
             ->join('customers', 'customers.id = customer_conversations.customer_id', 'left')
             ->join('customer_contacts', 'customer_contacts.id = customer_conversations.contact_id', 'left')
             ->join('users', 'users.id = customer_conversations.assigned_user_id', 'left')
+            ->join('commercial_requests', 'commercial_requests.id = customer_conversations.commercial_request_id', 'left')
             ->where('customer_conversations.id', $id)
             ->first();
         return is_array($row) ? $row : null;
