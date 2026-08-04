@@ -17,9 +17,26 @@ $slaLabels = ['on_time' => 'En tiempo', 'warning' => 'Próxima a vencer', 'overd
 </div>
 
 <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-    <div class="overflow-x-auto"><table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50"><tr><th class="px-5 py-4 text-left">Atención</th><th class="px-5 py-4 text-left">Canal</th><th class="px-5 py-4 text-left">Cliente</th><th class="px-5 py-4 text-left">Responsable</th><th class="px-5 py-4 text-left">Estado</th><th class="px-5 py-4 text-left">SLA</th></tr></thead><tbody class="divide-y divide-slate-100">
-    <?php foreach ($conversations as $row): ?><tr class="hover:bg-slate-50"><td class="px-5 py-4"><a class="font-bold text-cyan-700" href="<?= route_to('customer_conversations.show', $row['id']) ?>"><?= esc($row['code']) ?></a><p class="mt-1 text-slate-600"><?= esc($row['subject']) ?></p></td><td class="px-5 py-4"><?= esc($channelLabels[$row['primary_channel']] ?? $row['primary_channel']) ?></td><td class="px-5 py-4"><?= esc($row['business_name'] ?: 'Prospecto sin asociar') ?></td><td class="px-5 py-4"><?= esc($row['assigned_user_name'] ?: 'Sin asignar') ?></td><td class="px-5 py-4"><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold"><?= esc($statusLabels[$row['attention_status']] ?? $row['attention_status']) ?></span></td><td class="px-5 py-4"><span class="rounded-full px-3 py-1 text-xs font-semibold <?= $row['runtime_sla_status'] === 'overdue' ? 'bg-red-100 text-red-700' : ($row['runtime_sla_status'] === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700') ?>"><?= esc($slaLabels[$row['runtime_sla_status']] ?? '') ?></span></td></tr><?php endforeach ?>
-    <?php if ($conversations === []): ?><tr><td colspan="6" class="px-6 py-12 text-center text-slate-500">Aún no existen atenciones comerciales.</td></tr><?php endif ?>
-    </tbody></table></div>
+    <?php if ($conversations === []): ?>
+        <div class="p-10 text-center text-slate-500">Aún no existen atenciones comerciales.</div>
+    <?php else: ?>
+        <div class="overflow-x-auto">
+            <table data-trace-table="true" data-export-title="Atenciones comerciales TraceOPX" class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50"><tr><th class="px-5 py-4 text-left">Atención</th><th class="px-5 py-4 text-left">Canal</th><th class="px-5 py-4 text-left">Cliente</th><th class="px-5 py-4 text-left">Responsable</th><th class="px-5 py-4 text-left">Estado</th><th class="px-5 py-4 text-left">SLA</th></tr></thead>
+                <tbody class="divide-y divide-slate-100">
+                    <?php foreach ($conversations as $row): ?>
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-5 py-4"><a class="font-bold text-cyan-700" href="<?= route_to('customer_conversations.show', $row['id']) ?>"><?= esc($row['code']) ?></a><p class="mt-1 text-slate-600"><?= esc($row['subject']) ?></p></td>
+                            <td class="px-5 py-4"><?= esc($channelLabels[$row['primary_channel']] ?? $row['primary_channel']) ?></td>
+                            <td class="px-5 py-4"><?= esc($row['business_name'] ?: 'Prospecto sin asociar') ?></td>
+                            <td class="px-5 py-4"><?= esc($row['assigned_user_name'] ?: 'Sin asignar') ?></td>
+                            <td class="px-5 py-4"><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold"><?= esc($statusLabels[$row['attention_status']] ?? $row['attention_status']) ?></span></td>
+                            <td class="px-5 py-4"><span class="rounded-full px-3 py-1 text-xs font-semibold <?= $row['runtime_sla_status'] === 'overdue' ? 'bg-red-100 text-red-700' : ($row['runtime_sla_status'] === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700') ?>"><?= esc($slaLabels[$row['runtime_sla_status']] ?? '') ?></span></td>
+                        </tr>
+                    <?php endforeach ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif ?>
 </div>
 <?= $this->endSection() ?>
