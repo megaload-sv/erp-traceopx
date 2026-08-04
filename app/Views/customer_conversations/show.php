@@ -17,13 +17,23 @@ $statusLabels = ['new' => 'Nueva', 'in_attention' => 'En atención', 'waiting_cu
             <?php if ($conversation['summary']): ?><div class="mt-5 border-t border-slate-200 pt-5"><p class="text-xs font-semibold uppercase text-slate-500">Resumen</p><p class="mt-2 whitespace-pre-line text-slate-700"><?= esc($conversation['summary']) ?></p></div><?php endif ?>
         </section>
 
+        <?php if ($conversation['attention_status'] === 'converted' && ! empty($conversation['commercial_request_code'])): ?>
+            <section class="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+                <p class="text-xs font-semibold uppercase tracking-[.18em] text-emerald-700">Trazabilidad comercial</p>
+                <h4 class="mt-2 text-xl font-bold text-emerald-950">Solicitud comercial creada</h4>
+                <p class="mt-2 text-sm text-emerald-800">Esta atención fue formalizada como <strong><?= esc($conversation['commercial_request_code']) ?></strong>. El historial de interacciones permanece asociado como origen del proceso.</p>
+            </section>
+        <?php endif ?>
+
         <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div><p class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-600">Conversación omnicanal</p><h4 class="mt-1 text-xl font-bold">Interacciones</h4></div>
             <div class="mt-6 space-y-4"><?php foreach ($interactions as $item): ?><article class="rounded-2xl border <?= $item['direction'] === 'outbound' ? 'border-cyan-200 bg-cyan-50/50' : 'border-slate-200 bg-slate-50' ?> p-5"><div class="flex flex-wrap items-center justify-between gap-2"><p class="text-sm font-bold"><?= $item['direction'] === 'outbound' ? 'Empresa' : ($item['direction'] === 'internal' ? 'Nota interna' : 'Cliente') ?></p><p class="text-xs text-slate-500"><?= esc(ucfirst($item['channel'])) ?> · <?= esc(date('d/m/Y H:i', strtotime($item['occurred_at']))) ?></p></div><p class="mt-3 whitespace-pre-line text-slate-700"><?= esc($item['body']) ?></p></article><?php endforeach ?></div>
 
+            <?php if (! in_array($conversation['attention_status'], ['converted', 'discarded'], true)): ?>
             <form method="post" action="<?= route_to('customer_conversations.interactions.store', $conversation['id']) ?>" class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
                 <?= csrf_field() ?><div class="grid gap-4 md:grid-cols-3"><label><span class="mb-2 block text-sm font-semibold">Dirección</span><select name="direction"><option value="outbound">Respuesta de la empresa</option><option value="inbound">Respuesta del cliente</option><option value="internal">Nota interna</option></select></label><label><span class="mb-2 block text-sm font-semibold">Canal</span><select name="channel"><option value="whatsapp">WhatsApp</option><option value="email">Correo</option><option value="phone">Teléfono</option><option value="manual">Manual</option><option value="visit">Visita</option></select></label><label><span class="mb-2 block text-sm font-semibold">Tipo</span><select name="interaction_type"><option value="message">Mensaje</option><option value="email">Correo</option><option value="call">Llamada</option><option value="note">Nota</option></select></label></div><label class="mt-4 block"><span class="mb-2 block text-sm font-semibold">Contenido</span><textarea required name="body" rows="4" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3"></textarea></label><input type="hidden" name="occurred_at" value="<?= esc(date('Y-m-d H:i:s')) ?>"><div class="mt-4 flex justify-end"><button class="rounded-xl bg-slate-950 px-5 py-3 font-semibold text-white">Registrar interacción</button></div>
             </form>
+            <?php endif ?>
         </section>
     </div>
 
@@ -33,6 +43,18 @@ $statusLabels = ['new' => 'Nueva', 'in_attention' => 'En atención', 'waiting_cu
         <?php if (! in_array($conversation['attention_status'], ['information_complete', 'converted', 'discarded'], true)): ?><section class="rounded-2xl border border-amber-200 bg-amber-50 p-6"><h4 class="font-bold">Esperando información</h4><form method="post" action="<?= route_to('customer_conversations.wait_customer', $conversation['id']) ?>" class="mt-4"><?= csrf_field() ?><input required type="datetime-local" name="next_follow_up_at" class="w-full rounded-xl border border-amber-300 bg-white px-4 py-3"><button class="mt-3 w-full rounded-xl bg-amber-500 px-4 py-3 font-semibold">Programar seguimiento</button></form></section><?php endif ?>
 
         <?php if (! in_array($conversation['attention_status'], ['information_complete', 'converted', 'discarded'], true)): ?><form method="post" action="<?= route_to('customer_conversations.complete_information', $conversation['id']) ?>"><?= csrf_field() ?><button class="w-full rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white">Información completa</button></form><?php endif ?>
+
+        <?php if ($conversation['attention_status'] === 'information_complete' && empty($conversation['commercial_request_id'])): ?>
+            <section class="rounded-2xl border border-emerald-300 bg-emerald-50 p-6 shadow-sm">
+                <p class="text-xs font-semibold uppercase tracking-[.18em] text-emerald-700">Formalización</p>
+                <h4 class="mt-2 text-lg font-bold text-emerald-950">Crear solicitud comercial</h4>
+                <p class="mt-2 text-sm text-emerald-800">Se trasladarán cliente, contacto, responsable, canal, prioridad y resumen. La atención quedará cerrada y vinculada a la nueva solicitud.</p>
+                <form method="post" action="<?= route_to('customer_conversations.convert', $conversation['id']) ?>" class="mt-4" onsubmit="return confirm('¿Confirmas que la información está completa y deseas crear la solicitud comercial?')">
+                    <?= csrf_field() ?>
+                    <button class="w-full rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white">Confirmar y crear solicitud</button>
+                </form>
+            </section>
+        <?php endif ?>
     </aside>
 </div>
 <?= $this->endSection() ?>
