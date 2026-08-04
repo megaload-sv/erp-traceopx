@@ -5,7 +5,6 @@ namespace App\Controllers;
 use App\Models\CommercialRequestModel;
 use App\Services\ActivityService;
 use CodeIgniter\HTTP\RedirectResponse;
-use RuntimeException;
 
 class CommercialRequestsController extends BaseController
 {
@@ -19,6 +18,7 @@ class CommercialRequestsController extends BaseController
             $due = strtotime($request['first_responded_at'] ? $request['quotation_due_at'] : $request['first_response_due_at']);
             $request['runtime_sla_status'] = $due < $now ? 'overdue' : (($due - $now) <= 3600 ? 'warning' : 'on_time');
         }
+        unset($request);
 
         return view('commercial_requests/index', [
             'title' => 'Solicitudes comerciales',
@@ -35,11 +35,12 @@ class CommercialRequestsController extends BaseController
     public function create(): string
     {
         $db = db_connect();
+
         return view('commercial_requests/form', [
             'title' => 'Nueva solicitud comercial',
             'customers' => $db->table('customers')->where('status', 1)->orderBy('business_name')->get()->getResultArray(),
             'contacts' => $db->table('customer_contacts')->where('status', 1)->orderBy('name')->get()->getResultArray(),
-            'users' => $db->table('users')->where('status', 1)->orderBy('name')->get()->getResultArray(),
+            'users' => $db->table('users')->where('is_active', 1)->orderBy('name')->get()->getResultArray(),
             'policies' => $db->table('commercial_sla_policies')->where('status', 1)->orderBy('name')->get()->getResultArray(),
         ]);
     }
@@ -47,7 +48,12 @@ class CommercialRequestsController extends BaseController
     public function store(): RedirectResponse
     {
         $db = db_connect();
-        $policy = $db->table('commercial_sla_policies')->where('id', (int) $this->request->getPost('sla_policy_id'))->where('status', 1)->get()->getRowArray();
+        $policy = $db->table('commercial_sla_policies')
+            ->where('id', (int) $this->request->getPost('sla_policy_id'))
+            ->where('status', 1)
+            ->get()
+            ->getRowArray();
+
         if ($policy === null) {
             return redirect()->back()->withInput()->with('error', 'La política de SLA seleccionada no es válida.');
         }
@@ -81,8 +87,21 @@ class CommercialRequestsController extends BaseController
         }
 
         $requestId = (int) $requestId;
-        $this->createAutomaticTask($requestId, (int) ($this->request->getPost('assigned_user_id') ?: 0), 'Responder solicitud comercial', 'first_response', date('Y-m-d H:i:s', $receivedTimestamp + ((int) $policy['first_response_minutes'] * 60)));
-        (new ActivityService())->record('commercial_request', $requestId, 'commercial_request.created', 'Solicitud comercial recibida', 'Se registró una nueva entrada por ' . ucfirst((string) $this->request->getPost('channel')) . '.');
+        $this->createAutomaticTask(
+            $requestId,
+            (int) ($this->request->getPost('assigned_user_id') ?: 0),
+            'Responder solicitud comercial',
+            'first_response',
+            date('Y-m-d H:i:s', $receivedTimestamp + ((int) $policy['first_response_minutes'] * 60))
+        );
+
+        (new ActivityService())->record(
+            'commercial_request',
+            $requestId,
+            'commercial_request.created',
+            'Solicitud comercial recibida',
+            'Se registró una nueva entrada por ' . ucfirst((string) $this->request->getPost('channel')) . '.'
+        );
 
         return redirect()->to(route_to('commercial_requests.index'))->with('success', 'Solicitud comercial registrada con SLA y tarea automática.');
     }
@@ -110,12 +129,14 @@ class CommercialRequestsController extends BaseController
     private function nullable(string $field): ?string
     {
         $value = trim((string) $this->request->getPost($field));
+
         return $value === '' ? null : $value;
     }
 
     private function nullableInt(string $field): ?int
     {
         $value = trim((string) $this->request->getPost($field));
+
         return $value === '' ? null : (int) $value;
     }
 
@@ -124,6 +145,7 @@ class CommercialRequestsController extends BaseController
         $data = random_bytes(16);
         $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
         $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
+
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 }
