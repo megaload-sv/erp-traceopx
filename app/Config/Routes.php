@@ -20,6 +20,12 @@ $routes->group('system', static function (RouteCollection $routes): void {
 $routes->group('', ['filter' => 'auth'], static function (RouteCollection $routes): void {
     $routes->get('dashboard', 'DashboardController::index', ['as' => 'dashboard']);
 
+    $routes->group('tasks', static function (RouteCollection $routes): void {
+        $routes->post('(:num)/start', 'TaskActionsController::start/$1', ['as' => 'tasks.start']);
+        $routes->post('(:num)/complete', 'TaskActionsController::complete/$1', ['as' => 'tasks.complete']);
+        $routes->post('(:num)/reschedule', 'TaskActionsController::reschedule/$1', ['as' => 'tasks.reschedule']);
+    });
+
     $routes->group('attention', static function (RouteCollection $routes): void {
         $routes->get('', 'CustomerConversationsController::index', ['as' => 'customer_conversations.index']);
         $routes->get('create', 'CustomerConversationsController::create', ['as' => 'customer_conversations.create']);
