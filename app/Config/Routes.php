@@ -27,7 +27,8 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('(:num)', 'CustomerConversationsController::show/$1', ['as' => 'customer_conversations.show']);
         $routes->post('(:num)/interactions', 'CustomerConversationsController::addInteraction/$1', ['as' => 'customer_conversations.interactions.store']);
         $routes->post('(:num)/wait-customer', 'CustomerConversationsController::waitCustomer/$1', ['as' => 'customer_conversations.wait_customer']);
-        $routes->post('(:num)/information-complete', 'CustomerConversationsController::markInformationComplete/$1', ['as' => 'customer_conversations.complete_information']);
+        $routes->post('(:num)/complete-information', 'CustomerConversationsController::markInformationComplete/$1', ['as' => 'customer_conversations.complete_information']);
+        $routes->post('(:num)/convert', 'CustomerConversationsController::convertToRequest/$1', ['as' => 'customer_conversations.convert']);
     });
 
     $routes->group('commercial-requests', static function (RouteCollection $routes): void {
