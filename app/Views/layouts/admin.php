@@ -25,6 +25,7 @@
         </div>
         <nav class="space-y-2">
             <a href="<?= route_to('dashboard') ?>" class="block rounded-lg px-4 py-3 font-semibold <?= $uri === 'dashboard' ? 'bg-cyan-500 text-slate-950' : 'text-slate-300 hover:bg-slate-900' ?>">Dashboard</a>
+            <a href="<?= route_to('commercial_requests.index') ?>" class="block rounded-lg px-4 py-3 font-semibold <?= str_starts_with($uri, 'commercial-requests') ? 'bg-cyan-500 text-slate-950' : 'text-slate-300 hover:bg-slate-900' ?>">Solicitudes comerciales</a>
             <a href="<?= route_to('customers.index') ?>" class="block rounded-lg px-4 py-3 font-semibold <?= str_starts_with($uri, 'customers') ? 'bg-cyan-500 text-slate-950' : 'text-slate-300 hover:bg-slate-900' ?>">Clientes</a>
             <span class="block rounded-lg px-4 py-3 text-slate-500">Cotizaciones</span>
             <span class="block rounded-lg px-4 py-3 text-slate-500">Órdenes de trabajo</span>
