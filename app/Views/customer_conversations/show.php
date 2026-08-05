@@ -9,7 +9,7 @@ $firstResponseCompleted = ! empty($conversation['first_responded_at']);
 $slaState = $firstResponseCompleted ? 'fulfilled' : (($firstResponseDue !== null && $firstResponseDue < $now) ? 'overdue' : (($firstResponseDue !== null && ($firstResponseDue - $now) <= 900) ? 'warning' : 'on_time'));
 $slaLabels = ['fulfilled'=>'Primera respuesta cumplida','overdue'=>'Fuera de SLA','warning'=>'Próxima a vencer','on_time'=>'En tiempo'];
 $slaTone = ['fulfilled'=>'emerald','overdue'=>'red','warning'=>'amber','on_time'=>'cyan'];
-$pendingTasks = array_values(array_filter($tasks, static fn(array $task): bool => $task['status'] === 'pending'));
+$pendingTasks = array_values(array_filter($tasks, static fn(array $task): bool => in_array($task['status'], ['pending', 'in_progress'], true)));
 usort($pendingTasks, static fn(array $a, array $b): int => strtotime((string) $a['due_at']) <=> strtotime((string) $b['due_at']));
 $nextTask = $pendingTasks[0] ?? null;
 $nextAction = $nextTask['title'] ?? match ($conversation['attention_status']) {
@@ -43,7 +43,7 @@ $nextAction = $nextTask['title'] ?? match ($conversation['attention_status']) {
 <div class="mt-6 grid gap-4 md:grid-cols-3">
     <?= view('components/workspace/metric-card', ['label'=>'SLA de primera respuesta','value'=>$slaLabels[$slaState],'description'=>$firstResponseCompleted ? 'Respondida el '.date('d/m/Y H:i', strtotime((string) $conversation['first_responded_at'])) : 'Límite: '.date('d/m/Y H:i', $firstResponseDue ?: $now),'tone'=>$slaTone[$slaState]]) ?>
     <?= view('components/workspace/metric-card', ['label'=>'Próxima acción','value'=>$nextAction,'description'=>$nextTask ? 'Vence '.date('d/m/Y H:i', strtotime((string) $nextTask['due_at'])) : 'Sin tarea pendiente asociada.','tone'=>'violet']) ?>
-    <?= view('components/workspace/metric-card', ['label'=>'Actividad','value'=>count($interactions).' interacciones','description'=>count($pendingTasks).' tareas pendientes','tone'=>'slate']) ?>
+    <?= view('components/workspace/metric-card', ['label'=>'Actividad','value'=>count($interactions).' interacciones','description'=>count($pendingTasks).' tareas activas','tone'=>'slate']) ?>
 </div>
 
 <div class="mt-6 grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
@@ -97,7 +97,17 @@ $nextAction = $nextTask['title'] ?? match ($conversation['attention_status']) {
         <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p class="text-xs font-semibold uppercase tracking-[.18em] text-violet-600">Trabajo pendiente</p><h4 class="mt-1 text-lg font-bold">Tareas y próximas acciones</h4>
             <div class="mt-5 space-y-4">
-                <?php foreach ($tasks as $task): ?><?= view('components/workspace/task-item', ['title'=>$task['title'],'status'=>$task['status'],'dueAt'=>$task['due_at'],'isOverdue'=>$task['status']==='pending' && strtotime((string) $task['due_at']) < $now]) ?><?php endforeach ?>
+                <?php foreach ($tasks as $task): ?>
+                    <?= view('components/workspace/task-item', [
+                        'taskId'=>(int) $task['id'],
+                        'title'=>$task['title'],
+                        'status'=>$task['status'],
+                        'dueAt'=>$task['due_at'],
+                        'isOverdue'=>in_array($task['status'], ['pending','in_progress'], true) && strtotime((string) $task['due_at']) < $now,
+                        'completionNote'=>$task['completion_note'] ?? null,
+                        'rescheduleReason'=>$task['reschedule_reason'] ?? null,
+                    ]) ?>
+                <?php endforeach ?>
                 <?php if ($tasks === []): ?><p class="text-sm text-slate-500">Sin tareas asociadas.</p><?php endif ?>
             </div>
         </section>
