@@ -105,9 +105,11 @@ class TaskActionsController extends BaseController
 
     private function backToTask(array $task, string $message, bool $error = false): RedirectResponse
     {
-        $redirect = $task['related_type'] === 'customer_conversation'
-            ? route_to('customer_conversations.show', (int) $task['related_id'])
-            : route_to('commercial_requests.index');
+        $redirect = match ((string) $task['related_type']) {
+            'customer_conversation' => route_to('customer_conversations.show', (int) $task['related_id']),
+            'commercial_request' => route_to('commercial_requests.show', (int) $task['related_id']),
+            default => route_to('dashboard'),
+        };
 
         return redirect()->to($redirect)->with($error ? 'error' : 'success', $message);
     }
