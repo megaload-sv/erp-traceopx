@@ -26,6 +26,28 @@ Toda cotización deberá registrar su origen.
 11. Guardado como borrador.
 12. Resumen financiero sin impuestos por línea.
 
+## Incremento técnico 7.1
+
+Se crearon las tablas, modelos, seeders y servicios de dominio para cotizaciones, conceptos, destinatarios, unidades comerciales y formas de pago.
+
+## Incremento visible 7.2
+
+Se habilitaron:
+
+- `GET /quotations`
+- `GET /quotations/create`
+- `POST /quotations`
+- `GET /quotations/{id}`
+- Menú activo de Cotizaciones.
+- Bandeja empresarial con DataTables.
+- Creación inicial de borradores.
+- Selección de cliente.
+- Contactos filtrados por cliente.
+- Contacto principal preseleccionado.
+- Agente comercial.
+- Fecha, vigencia y forma de pago.
+- Workspace inicial con resumen comercial y financiero.
+
 ## Líneas de cotización
 
 Cada línea registrará:
@@ -53,6 +75,13 @@ Los términos generales se obtendrán desde Settings al crear una cotización. C
 ## Forma de pago
 
 La forma de pago será inicialmente seleccionable desde catálogo. Su impacto sobre anticipos, liberación hacia coordinación y saldos pendientes se implementará progresivamente después de validar el flujo financiero real.
+
+## Próximo incremento
+
+- Agregar conceptos desde el catálogo comercial nuevo.
+- Agregar conceptos manuales.
+- Editar unidad, cantidad, precio y descripciones.
+- Recalcular subtotal y total.
 
 ## Fuera de alcance en V1
 
