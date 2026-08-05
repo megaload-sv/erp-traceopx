@@ -20,6 +20,30 @@ $routes->group('system', static function (RouteCollection $routes): void {
 $routes->group('', ['filter' => 'auth'], static function (RouteCollection $routes): void {
     $routes->get('dashboard', 'DashboardController::index', ['as' => 'dashboard']);
 
+    $routes->group('tasks', static function (RouteCollection $routes): void {
+        $routes->post('(:num)/start', 'TaskActionsController::start/$1', ['as' => 'tasks.start']);
+        $routes->post('(:num)/complete', 'TaskActionsController::complete/$1', ['as' => 'tasks.complete']);
+        $routes->post('(:num)/reschedule', 'TaskActionsController::reschedule/$1', ['as' => 'tasks.reschedule']);
+    });
+
+    $routes->group('attention', static function (RouteCollection $routes): void {
+        $routes->get('', 'CustomerConversationsController::index', ['as' => 'customer_conversations.index']);
+        $routes->get('create', 'CustomerConversationsController::create', ['as' => 'customer_conversations.create']);
+        $routes->post('', 'CustomerConversationsController::store', ['as' => 'customer_conversations.store']);
+        $routes->get('(:num)', 'CustomerConversationsController::show/$1', ['as' => 'customer_conversations.show']);
+        $routes->post('(:num)/interactions', 'CustomerConversationsController::addInteraction/$1', ['as' => 'customer_conversations.interactions.store']);
+        $routes->post('(:num)/wait-customer', 'CustomerConversationsController::waitCustomer/$1', ['as' => 'customer_conversations.wait_customer']);
+        $routes->post('(:num)/complete-information', 'CustomerConversationsController::markInformationComplete/$1', ['as' => 'customer_conversations.complete_information']);
+        $routes->post('(:num)/convert', 'CustomerConversationsController::convertToRequest/$1', ['as' => 'customer_conversations.convert']);
+    });
+
+    $routes->group('commercial-requests', static function (RouteCollection $routes): void {
+        $routes->get('', 'CommercialRequestsController::index', ['as' => 'commercial_requests.index']);
+        $routes->get('create', 'CommercialRequestsController::create', ['as' => 'commercial_requests.create']);
+        $routes->post('', 'CommercialRequestsController::store', ['as' => 'commercial_requests.store']);
+        $routes->get('(:num)', 'CommercialRequestsController::show/$1', ['as' => 'commercial_requests.show']);
+    });
+
     $routes->group('customers', static function (RouteCollection $routes): void {
         $routes->get('', 'CustomersController::index', ['as' => 'customers.index']);
         $routes->get('create', 'CustomersController::create', ['as' => 'customers.create']);

@@ -28,12 +28,6 @@ $tierLabels = ['standard' => 'Estándar', 'preferential' => 'Preferencial', 'str
     <?php endforeach ?>
 </div>
 
-<form method="get" action="<?= route_to('customers.index') ?>" class="mb-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row">
-    <input type="search" name="q" value="<?= esc($search) ?>" placeholder="Código, nombre, NIT, correo, teléfono o ejecutivo" class="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-cyan-500">
-    <button class="rounded-xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950">Buscar</button>
-    <?php if ($search !== ''): ?><a href="<?= route_to('customers.index') ?>" class="rounded-xl border border-slate-300 px-5 py-3 text-center font-semibold text-slate-700">Limpiar</a><?php endif ?>
-</form>
-
 <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
     <?php if ($customers === []): ?>
         <div class="p-6">
@@ -46,9 +40,9 @@ $tierLabels = ['standard' => 'Estándar', 'preferential' => 'Preferencial', 'str
         </div>
     <?php else: ?>
         <div class="overflow-x-auto">
-            <table class="min-w-full text-left text-sm">
+            <table data-trace-table="true" data-export-title="Directorio de clientes TraceOPX" class="min-w-full text-left text-sm">
                 <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                    <tr><th class="px-5 py-4">Cliente</th><th class="px-5 py-4">Contacto</th><th class="px-5 py-4">Relación</th><th class="px-5 py-4">Seguimiento</th><th class="px-5 py-4 text-right">Acción</th></tr>
+                    <tr><th class="px-5 py-4">Cliente</th><th class="px-5 py-4">Contacto</th><th class="px-5 py-4">Relación</th><th class="px-5 py-4">Seguimiento</th><th class="px-5 py-4 text-right" data-dt-order="disable">Acción</th></tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     <?php foreach ($customers as $customer): ?>
@@ -64,7 +58,7 @@ $tierLabels = ['standard' => 'Estándar', 'preferential' => 'Preferencial', 'str
                                     <span class="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-800"><?= esc($tierLabels[$customer['relationship_tier']] ?? $customer['relationship_tier']) ?></span>
                                 </div>
                             </td>
-                            <td class="px-5 py-4 text-slate-600"><p><?= esc($customer['assigned_sales_user'] ?: 'Sin ejecutivo') ?></p><p class="text-xs text-slate-500"><?= $customer['next_follow_up_date'] ? esc(date('d/m/Y', strtotime($customer['next_follow_up_date']))) : 'Sin fecha programada' ?></p></td>
+                            <td data-order="<?= esc($customer['next_follow_up_date'] ? strtotime($customer['next_follow_up_date']) : 0) ?>" class="px-5 py-4 text-slate-600"><p><?= esc($customer['assigned_sales_user'] ?: 'Sin ejecutivo') ?></p><p class="text-xs text-slate-500"><?= $customer['next_follow_up_date'] ? esc(date('d/m/Y', strtotime($customer['next_follow_up_date']))) : 'Sin fecha programada' ?></p></td>
                             <td class="px-5 py-4 text-right"><a href="<?= route_to('customers.show', $customer['id']) ?>" class="font-semibold text-cyan-700">Abrir perfil</a></td>
                         </tr>
                     <?php endforeach ?>
