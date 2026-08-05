@@ -2,9 +2,11 @@
 
 namespace App\Controllers;
 
+use App\Models\ActivityEventModel;
 use App\Models\CommercialRequestModel;
 use App\Services\ActivityService;
 use CodeIgniter\HTTP\RedirectResponse;
+use RuntimeException;
 
 class CommercialRequestsController extends BaseController
 {
@@ -29,6 +31,29 @@ class CommercialRequestsController extends BaseController
                 'waiting' => count(array_filter($requests, static fn ($r) => $r['status'] === 'waiting_customer')),
                 'overdue' => count(array_filter($requests, static fn ($r) => $r['runtime_sla_status'] === 'overdue')),
             ],
+        ]);
+    }
+
+    public function show(int $id): string
+    {
+        $request = (new CommercialRequestModel())->detail($id);
+        if ($request === null) {
+            throw new RuntimeException('Solicitud comercial no encontrada.');
+        }
+
+        $db = db_connect();
+        $tasks = $db->table('tasks')
+            ->where('related_type', 'commercial_request')
+            ->where('related_id', $id)
+            ->orderBy('due_at', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        return view('commercial_requests/show', [
+            'title' => $request['code'],
+            'request' => $request,
+            'tasks' => $tasks,
+            'events' => (new ActivityEventModel())->forEntity('commercial_request', $id),
         ]);
     }
 
@@ -103,7 +128,7 @@ class CommercialRequestsController extends BaseController
             'Se registró una nueva entrada por ' . ucfirst((string) $this->request->getPost('channel')) . '.'
         );
 
-        return redirect()->to(route_to('commercial_requests.index'))->with('success', 'Solicitud comercial registrada con SLA y tarea automática.');
+        return redirect()->to(route_to('commercial_requests.show', $requestId))->with('success', 'Solicitud comercial registrada con SLA y tarea automática.');
     }
 
     private function createAutomaticTask(int $requestId, int $assignedUserId, string $title, string $type, string $dueAt): void
