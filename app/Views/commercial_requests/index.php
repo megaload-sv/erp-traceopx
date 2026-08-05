@@ -33,7 +33,12 @@ $slaLabels = ['on_time'=>'En tiempo','warning'=>'Próxima a vencer','overdue'=>'
                 <tbody class="divide-y divide-slate-100">
                     <?php foreach ($requests as $request): ?>
                     <tr class="hover:bg-slate-50">
-                        <td class="px-5 py-4"><p class="font-semibold text-slate-950"><?= esc($request['subject']) ?></p><p class="mt-1 text-xs font-bold text-cyan-700"><?= esc($request['code']) ?></p></td>
+                        <td class="px-5 py-4">
+                            <a href="<?= route_to('commercial_requests.show', $request['id']) ?>" class="group block">
+                                <p class="font-semibold text-slate-950 transition group-hover:text-cyan-700"><?= esc($request['subject']) ?></p>
+                                <p class="mt-1 text-xs font-bold text-cyan-700"><?= esc($request['code']) ?> <span aria-hidden="true">↗</span></p>
+                            </a>
+                        </td>
                         <td class="px-5 py-4"><?= esc($channelLabels[$request['channel']] ?? $request['channel']) ?></td>
                         <td class="px-5 py-4"><?= esc($request['business_name'] ?: 'Prospecto sin asociar') ?></td>
                         <td class="px-5 py-4"><?= esc($request['assigned_user_name'] ?: 'Sin asignar') ?></td>
