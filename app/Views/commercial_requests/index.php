@@ -28,15 +28,25 @@ $slaLabels = ['on_time'=>'En tiempo','warning'=>'Próxima a vencer','overdue'=>'
         <div class="p-6"><?= view('components/workspace/empty-state', ['title'=>'No hay solicitudes comerciales','description'=>'Registra la primera entrada para iniciar su SLA y tarea de atención.','actionUrl'=>route_to('commercial_requests.create'),'actionLabel'=>'Registrar solicitud']) ?></div>
     <?php else: ?>
         <div class="overflow-x-auto">
-            <table data-trace-table="true" data-export-title="Solicitudes comerciales TraceOPX" class="min-w-full text-left text-sm">
-                <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th class="px-5 py-4">Solicitud</th><th class="px-5 py-4">Canal</th><th class="px-5 py-4">Cliente</th><th class="px-5 py-4">Responsable</th><th class="px-5 py-4">Estado</th><th class="px-5 py-4">SLA</th><th class="px-5 py-4">Límite</th></tr></thead>
+            <table data-trace-table="true" data-export-title="Solicitudes comerciales TraceOPX" class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-5 py-4 text-left font-semibold text-slate-700">Solicitud</th>
+                        <th class="px-5 py-4 text-left font-semibold text-slate-700">Canal</th>
+                        <th class="px-5 py-4 text-left font-semibold text-slate-700">Cliente</th>
+                        <th class="px-5 py-4 text-left font-semibold text-slate-700">Responsable</th>
+                        <th class="px-5 py-4 text-left font-semibold text-slate-700">Estado</th>
+                        <th class="px-5 py-4 text-left font-semibold text-slate-700">SLA</th>
+                        <th class="px-5 py-4 text-left font-semibold text-slate-700">Límite</th>
+                    </tr>
+                </thead>
                 <tbody class="divide-y divide-slate-100">
                     <?php foreach ($requests as $request): ?>
                     <tr class="hover:bg-slate-50">
                         <td class="px-5 py-4">
                             <a href="<?= route_to('commercial_requests.show', $request['id']) ?>" class="group block">
-                                <p class="font-semibold text-slate-950 transition group-hover:text-cyan-700"><?= esc($request['subject']) ?></p>
-                                <p class="mt-1 text-xs font-bold text-cyan-700"><?= esc($request['code']) ?> <span aria-hidden="true">↗</span></p>
+                                <p class="font-bold text-cyan-700 transition group-hover:text-cyan-800"><?= esc($request['code']) ?></p>
+                                <p class="mt-1 text-slate-600 transition group-hover:text-slate-900"><?= esc($request['subject']) ?></p>
                             </a>
                         </td>
                         <td class="px-5 py-4"><?= esc($channelLabels[$request['channel']] ?? $request['channel']) ?></td>

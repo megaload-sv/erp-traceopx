@@ -22,7 +22,16 @@ $slaLabels = ['on_time' => 'En tiempo', 'warning' => 'Próxima a vencer', 'overd
     <?php else: ?>
         <div class="overflow-x-auto">
             <table data-trace-table="true" data-export-title="Atenciones comerciales TraceOPX" class="min-w-full divide-y divide-slate-200 text-sm">
-                <thead class="bg-slate-50"><tr><th class="px-5 py-4 text-left">Atención</th><th class="px-5 py-4 text-left">Canal</th><th class="px-5 py-4 text-left">Cliente</th><th class="px-5 py-4 text-left">Responsable</th><th class="px-5 py-4 text-left">Estado</th><th class="px-5 py-4 text-left">SLA</th></tr></thead>
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-5 py-4 text-left font-semibold text-slate-700">Atención</th>
+                        <th class="px-5 py-4 text-left font-semibold text-slate-700">Canal</th>
+                        <th class="px-5 py-4 text-left font-semibold text-slate-700">Cliente</th>
+                        <th class="px-5 py-4 text-left font-semibold text-slate-700">Responsable</th>
+                        <th class="px-5 py-4 text-left font-semibold text-slate-700">Estado</th>
+                        <th class="px-5 py-4 text-left font-semibold text-slate-700">SLA</th>
+                    </tr>
+                </thead>
                 <tbody class="divide-y divide-slate-100">
                     <?php foreach ($conversations as $row): ?>
                         <tr class="hover:bg-slate-50">
