@@ -31,6 +31,24 @@ class CommercialRequestModel extends BaseModel
             ->findAll();
     }
 
+    public function detail(int $id): ?array
+    {
+        return $this->select(
+                'commercial_requests.*, customers.business_name, customer_contacts.name AS contact_name, '
+                . 'customer_contacts.email AS contact_email, customer_contacts.phone AS contact_phone, '
+                . 'users.name AS assigned_user_name, users.email AS assigned_user_email, '
+                . 'commercial_sla_policies.name AS sla_policy_name, '
+                . 'customer_conversations.code AS source_conversation_code'
+            )
+            ->join('customers', 'customers.id = commercial_requests.customer_id', 'left')
+            ->join('customer_contacts', 'customer_contacts.id = commercial_requests.contact_id', 'left')
+            ->join('users', 'users.id = commercial_requests.assigned_user_id', 'left')
+            ->join('commercial_sla_policies', 'commercial_sla_policies.id = commercial_requests.sla_policy_id', 'left')
+            ->join('customer_conversations', 'customer_conversations.id = commercial_requests.source_conversation_id', 'left')
+            ->where('commercial_requests.id', $id)
+            ->first();
+    }
+
     public function nextCode(): string
     {
         $last = $this->select('id')->withDeleted()->orderBy('id', 'DESC')->first();
