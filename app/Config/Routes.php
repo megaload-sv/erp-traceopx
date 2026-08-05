@@ -41,6 +41,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('', 'CommercialRequestsController::index', ['as' => 'commercial_requests.index']);
         $routes->get('create', 'CommercialRequestsController::create', ['as' => 'commercial_requests.create']);
         $routes->post('', 'CommercialRequestsController::store', ['as' => 'commercial_requests.store']);
+        $routes->get('(:num)', 'CommercialRequestsController::show/$1', ['as' => 'commercial_requests.show']);
     });
 
     $routes->group('customers', static function (RouteCollection $routes): void {
