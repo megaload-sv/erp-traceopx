@@ -75,7 +75,7 @@
             <a href="<?= route_to('customer_conversations.index') ?>" class="block rounded-lg px-4 py-3 font-semibold <?= str_starts_with($uri, 'attention') ? 'bg-cyan-500 text-slate-950' : 'text-slate-300 hover:bg-slate-900' ?>">Atención comercial</a>
             <a href="<?= route_to('commercial_requests.index') ?>" class="block rounded-lg px-4 py-3 font-semibold <?= str_starts_with($uri, 'commercial-requests') ? 'bg-cyan-500 text-slate-950' : 'text-slate-300 hover:bg-slate-900' ?>">Solicitudes comerciales</a>
             <a href="<?= route_to('customers.index') ?>" class="block rounded-lg px-4 py-3 font-semibold <?= str_starts_with($uri, 'customers') ? 'bg-cyan-500 text-slate-950' : 'text-slate-300 hover:bg-slate-900' ?>">Clientes</a>
-            <span class="block rounded-lg px-4 py-3 text-slate-500">Cotizaciones</span>
+            <a href="<?= route_to('quotations.index') ?>" class="block rounded-lg px-4 py-3 font-semibold <?= str_starts_with($uri, 'quotations') ? 'bg-cyan-500 text-slate-950' : 'text-slate-300 hover:bg-slate-900' ?>">Cotizaciones</a>
             <span class="block rounded-lg px-4 py-3 text-slate-500">Órdenes de trabajo</span>
             <span class="block rounded-lg px-4 py-3 text-slate-500">Facturación</span>
         </nav>

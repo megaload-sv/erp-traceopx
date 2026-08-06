@@ -44,6 +44,20 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('(:num)', 'CommercialRequestsController::show/$1', ['as' => 'commercial_requests.show']);
     });
 
+    $routes->group('quotations', static function (RouteCollection $routes): void {
+        $routes->get('', 'QuotationsController::index', ['as' => 'quotations.index']);
+        $routes->get('create', 'QuotationsController::create', ['as' => 'quotations.create']);
+        $routes->post('', 'QuotationsController::store', ['as' => 'quotations.store']);
+        $routes->get('(:num)', 'QuotationsController::show/$1', ['as' => 'quotations.show']);
+        $routes->post('(:num)/items', 'QuotationItemsController::store/$1', ['as' => 'quotations.items.store']);
+        $routes->post('(:num)/items/(:num)/delete', 'QuotationItemsController::delete/$1/$2', ['as' => 'quotations.items.delete']);
+    });
+
+    $routes->group('commercial-items', static function (RouteCollection $routes): void {
+        $routes->get('', 'CommercialItemsController::index', ['as' => 'commercial_items.index']);
+        $routes->post('', 'CommercialItemsController::store', ['as' => 'commercial_items.store']);
+    });
+
     $routes->group('customers', static function (RouteCollection $routes): void {
         $routes->get('', 'CustomersController::index', ['as' => 'customers.index']);
         $routes->get('create', 'CustomersController::create', ['as' => 'customers.create']);
