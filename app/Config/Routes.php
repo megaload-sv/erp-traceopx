@@ -49,6 +49,13 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('create', 'QuotationsController::create', ['as' => 'quotations.create']);
         $routes->post('', 'QuotationsController::store', ['as' => 'quotations.store']);
         $routes->get('(:num)', 'QuotationsController::show/$1', ['as' => 'quotations.show']);
+        $routes->post('(:num)/items', 'QuotationsController::addItem/$1', ['as' => 'quotations.items.store']);
+        $routes->post('(:num)/items/(:num)/delete', 'QuotationsController::deleteItem/$1/$2', ['as' => 'quotations.items.delete']);
+    });
+
+    $routes->group('commercial-items', static function (RouteCollection $routes): void {
+        $routes->get('', 'CommercialItemsController::index', ['as' => 'commercial_items.index']);
+        $routes->post('', 'CommercialItemsController::store', ['as' => 'commercial_items.store']);
     });
 
     $routes->group('customers', static function (RouteCollection $routes): void {
