@@ -53,6 +53,11 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('(:num)/items/(:num)/delete', 'QuotationItemsController::delete/$1/$2', ['as' => 'quotations.items.delete']);
     });
 
+    $routes->group('service-cases', static function (RouteCollection $routes): void {
+        $routes->get('', 'ServiceCasesController::index', ['as' => 'service_cases.index']);
+        $routes->get('(:num)', 'ServiceCasesController::show/$1', ['as' => 'service_cases.show']);
+    });
+
     $routes->group('commercial-items', static function (RouteCollection $routes): void {
         $routes->get('', 'CommercialItemsController::index', ['as' => 'commercial_items.index']);
         $routes->post('', 'CommercialItemsController::store', ['as' => 'commercial_items.store']);
