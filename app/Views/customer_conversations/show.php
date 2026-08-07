@@ -61,7 +61,17 @@ $nextAction = $nextTask['title'] ?? match ($conversation['attention_status']) {
     </aside>
 
     <main class="space-y-6">
-        <?php if ($conversation['attention_status'] === 'converted' && ! empty($conversation['commercial_request_code'])): ?><section class="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm"><p class="text-xs font-semibold uppercase tracking-[.18em] text-emerald-700">Trazabilidad comercial</p><h4 class="mt-2 text-xl font-bold text-emerald-950">Solicitud <?= esc($conversation['commercial_request_code']) ?> creada</h4><p class="mt-2 text-sm text-emerald-800">La conversación permanece como origen y evidencia del proceso comercial.</p></section><?php endif ?>
+        <?php if ($conversation['attention_status'] === 'converted' && ! empty($conversation['commercial_request_code'])): ?>
+            <section class="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+                <p class="text-xs font-semibold uppercase tracking-[.18em] text-emerald-700">Trazabilidad de origen</p>
+                <div class="mt-3 flex flex-wrap items-center gap-3">
+                    <span class="rounded-xl bg-white px-4 py-3 font-bold text-slate-800"><?= esc($conversation['code']) ?></span>
+                    <span class="text-emerald-400">→</span>
+                    <a href="<?= route_to('commercial_requests.show', $conversation['commercial_request_id']) ?>" class="rounded-xl bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800">Solicitud <?= esc($conversation['commercial_request_code']) ?> ↗</a>
+                </div>
+                <p class="mt-3 text-sm text-emerald-800">La atención permanece como origen y evidencia del proceso comercial.</p>
+            </section>
+        <?php endif ?>
 
         <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div><p class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-600">Timeline omnicanal</p><h4 class="mt-1 text-xl font-bold">Historia de la atención</h4></div>
