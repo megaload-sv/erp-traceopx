@@ -20,7 +20,7 @@
 <aside class="w-full bg-slate-950 px-6 py-6 text-white lg:min-h-screen lg:w-72">
     <div class="mb-8"><p class="text-xs font-semibold uppercase tracking-[.3em] text-cyan-400">Megaload</p><h1 class="mt-2 text-2xl font-bold">ERP TraceOPX</h1><p class="mt-2 text-sm text-slate-400">Trazabilidad operativa integral</p></div>
     <nav class="space-y-2">
-        <?php $links=[['dashboard','Dashboard','dashboard'],['customer_conversations.index','Atención comercial','attention'],['commercial_requests.index','Solicitudes comerciales','commercial-requests'],['customers.index','Clientes','customers'],['quotations.index','Cotizaciones','quotations'],['service_cases.index','Expedientes de servicio','service-cases']]; ?>
+        <?php $links=[['dashboard','Dashboard','dashboard'],['customer_conversations.index','Atención comercial','attention'],['commercial_requests.index','Solicitudes comerciales','commercial-requests'],['customers.index','Clientes','customers'],['quotations.index','Cotizaciones','quotations'],['service_cases.index','Expedientes de servicio','service-cases'],['equipment.index','Maquinaria y equipo','equipment']]; ?>
         <?php foreach($links as [$route,$label,$prefix]): ?><a href="<?= route_to($route) ?>" class="block rounded-lg px-4 py-3 font-semibold <?= ($uri===$prefix||str_starts_with($uri,$prefix.'/'))?'bg-cyan-500 text-slate-950':'text-slate-300 hover:bg-slate-900' ?>"><?= esc($label) ?></a><?php endforeach ?>
         <span class="block rounded-lg px-4 py-3 text-slate-500">Coordinación y recursos</span><span class="block rounded-lg px-4 py-3 text-slate-500">Órdenes de trabajo</span><span class="block rounded-lg px-4 py-3 text-slate-500">Facturación y cobros</span>
     </nav>
