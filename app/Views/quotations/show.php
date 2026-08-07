@@ -189,9 +189,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const showItemOverlayAndSubmit = () => {
         if (!itemForm || itemForm.dataset.submitting === 'true') return;
+
         itemForm.dataset.submitting = 'true';
-        itemForm.querySelectorAll('button, input, select, textarea').forEach(control => control.disabled = true);
-        if (mergeDuplicate) mergeDuplicate.disabled = false;
+
+        // Do not disable inputs/selects/textareas before submitting.
+        // Disabled controls are omitted from the POST payload (including CSRF).
+        const submitButton = itemForm.querySelector('button[type="submit"]');
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.setAttribute('aria-disabled', 'true');
+        }
+
         itemOverlay?.classList.replace('hidden', 'flex');
         HTMLFormElement.prototype.submit.call(itemForm);
     };
