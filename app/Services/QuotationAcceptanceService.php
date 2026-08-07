@@ -25,8 +25,26 @@ class QuotationAcceptanceService
         if (empty($quotation['customer_id']) || empty($quotation['assigned_user_id']) || empty($quotation['payment_term_id'])) {
             throw new RuntimeException('Complete cliente, agente comercial y forma de pago antes de aceptar la cotización.');
         }
-        if (trim((string) ($data['accepted_by_name'] ?? '')) === '') {
-            throw new RuntimeException('Ingrese el nombre de la persona que aceptó la cotización.');
+
+        $acceptedByName = trim((string) ($data['accepted_by_name'] ?? ''));
+        $contactId = ! empty($data['customer_contact_id']) ? (int) $data['customer_contact_id'] : null;
+
+        if ($acceptedByName === '') {
+            throw new RuntimeException('Ingrese o seleccione la persona que aceptó la cotización.');
+        }
+
+        if ($contactId !== null) {
+            $contact = $db->table('customer_contacts')
+                ->where('id', $contactId)
+                ->where('customer_id', $quotation['customer_id'])
+                ->where('status', 1)
+                ->where('delete_date', null)
+                ->get()
+                ->getRowArray();
+
+            if ($contact === null) {
+                throw new RuntimeException('El contacto seleccionado no pertenece al cliente de la cotización.');
+            }
         }
 
         $existingAcceptance = $db->table('quotation_acceptances')->where('quotation_id', $quotationId)->where('delete_date', null)->get()->getRowArray();
@@ -46,8 +64,9 @@ class QuotationAcceptanceService
         try {
             $db->table('quotation_acceptances')->insert([
                 'quotation_id' => $quotationId,
+                'customer_contact_id' => $contactId,
                 'accepted_at' => (string) ($data['accepted_at'] ?: $now),
-                'accepted_by_name' => trim((string) $data['accepted_by_name']),
+                'accepted_by_name' => $acceptedByName,
                 'acceptance_type' => (string) $data['acceptance_type'],
                 'fiscal_document_type' => (string) $data['fiscal_document_type'],
                 'evidence_path' => $data['evidence_path'] ?? null,
@@ -74,7 +93,7 @@ class QuotationAcceptanceService
                 'service_case_id' => $caseId,
                 'event_code' => 'quotation.accepted',
                 'title' => 'Cotización aceptada',
-                'description' => 'Aceptada por ' . trim((string) $data['accepted_by_name']) . ' mediante ' . (string) $data['acceptance_type'] . '.',
+                'description' => 'Aceptada por ' . $acceptedByName . ' mediante ' . (string) $data['acceptance_type'] . '.',
                 'entity_type' => 'quotation',
                 'entity_id' => $quotationId,
                 'occurred_at' => $now,
@@ -82,12 +101,15 @@ class QuotationAcceptanceService
                 'entry_date' => $now,
             ]);
 
-            $db->commit();
+            if (! $db->transCommit()) {
+                throw new RuntimeException('No fue posible confirmar la aceptación de la cotización.');
+            }
+
             (new ProcessEngineService())->evaluate($caseId);
             (new ActivityService())->record('quotation', $quotationId, 'quotation.accepted', 'Cotización aceptada', 'Se creó el expediente de servicio asociado.');
             return $caseId;
         } catch (Throwable $e) {
-            $db->rollBack();
+            $db->transRollback();
             throw $e;
         }
     }
