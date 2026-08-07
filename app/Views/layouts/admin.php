@@ -31,6 +31,25 @@
 <script>
 window.traceOpxChoices=new Map();window.initTraceOpxSelect=function(s){if(!s||s.dataset.native==='true'||window.traceOpxChoices.has(s))return null;const i=new Choices(s,{searchEnabled:true,shouldSort:false,itemSelectText:'',allowHTML:false,searchPlaceholderValue:'Buscar por código o descripción',noResultsText:'Sin resultados',noChoicesText:'Sin opciones disponibles',placeholder:true,placeholderValue:s.dataset.placeholder||'Seleccionar'});window.traceOpxChoices.set(s,i);return i};
 window.traceOpxTables=new Map();window.initTraceOpxTable=function(t){if(!t||window.traceOpxTables.has(t))return null;const title=t.dataset.exportTitle||document.title;const i=new DataTable(t,{stateSave:true,pageLength:25,lengthMenu:[10,25,50,100],order:[],layout:{topStart:'pageLength',topEnd:{search:{placeholder:'Buscar en el listado'}},top2Start:{buttons:[{extend:'colvis',text:'Columnas'},{extend:'csvHtml5',text:'CSV',title},{extend:'excelHtml5',text:'Excel',title},{extend:'pdfHtml5',text:'PDF',title,orientation:'landscape',pageSize:'A4'},{extend:'print',text:'Imprimir',title}]},bottomStart:'info',bottomEnd:'paging'},language:{search:'Buscar:',lengthMenu:'Mostrar _MENU_ registros',info:'Mostrando _START_ a _END_ de _TOTAL_ registros',infoEmpty:'Sin registros disponibles',infoFiltered:'(filtrado de _MAX_ registros)',zeroRecords:'No se encontraron coincidencias',emptyTable:'No hay información disponible',paginate:{first:'Primero',previous:'Anterior',next:'Siguiente',last:'Último'}}});window.traceOpxTables.set(t,i);return i};
+
+// Preserve the CSRF field for the quotation item form even when its UI controls are disabled.
+document.addEventListener('submit',(event)=>{
+    const form=event.target;
+    if(!(form instanceof HTMLFormElement)||form.id!=='quotation-item-form')return;
+    const token=form.querySelector('input[type="hidden"]:not([name="merge_duplicate"])');
+    if(!token||!token.name)return;
+    let mirror=document.getElementById('quotation-item-csrf-mirror');
+    if(!mirror){
+        mirror=document.createElement('input');
+        mirror.type='hidden';
+        mirror.id='quotation-item-csrf-mirror';
+        mirror.setAttribute('form','quotation-item-form');
+        document.body.appendChild(mirror);
+    }
+    mirror.name=token.name;
+    mirror.value=token.value;
+},true);
+
 document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('select:not([data-native="true"])').forEach(window.initTraceOpxSelect);document.querySelectorAll('table[data-trace-table="true"]').forEach(window.initTraceOpxTable)});
 </script>
 <?= $this->renderSection('scripts') ?>
