@@ -51,6 +51,13 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('(:num)', 'QuotationsController::show/$1', ['as' => 'quotations.show']);
         $routes->post('(:num)/items', 'QuotationItemsController::store/$1', ['as' => 'quotations.items.store']);
         $routes->post('(:num)/items/(:num)/delete', 'QuotationItemsController::delete/$1/$2', ['as' => 'quotations.items.delete']);
+        $routes->post('(:num)/transition', 'QuotationWorkflowController::transition/$1', ['as' => 'quotations.transition']);
+        $routes->post('(:num)/accept', 'QuotationWorkflowController::accept/$1', ['as' => 'quotations.accept']);
+    });
+
+    $routes->group('service-cases', static function (RouteCollection $routes): void {
+        $routes->get('', 'ServiceCasesController::index', ['as' => 'service_cases.index']);
+        $routes->get('(:num)', 'ServiceCasesController::show/$1', ['as' => 'service_cases.show']);
     });
 
     $routes->group('commercial-items', static function (RouteCollection $routes): void {

@@ -1,14 +1,15 @@
 <?= $this->extend('layouts/admin') ?>
 <?= $this->section('content') ?>
 <?php
-$statusLabels = ['new'=>'Nueva','assigned'=>'Asignada','in_progress'=>'En atención','waiting_customer'=>'Esperando cliente','ready_to_quote'=>'Lista para cotizar','quotation_preparation'=>'Cotización en preparación','quotation_sent'=>'Cotización enviada','converted'=>'Convertida','discarded'=>'Descartada'];
+$statusLabels = ['new'=>'Nueva','assigned'=>'Asignada','in_progress'=>'En atención','waiting_customer'=>'Esperando cliente','ready_to_quote'=>'Lista para cotizar','quotation_preparation'=>'Cotización creada','quotation_sent'=>'Cotización enviada','converted'=>'Convertida','discarded'=>'Descartada'];
 $channelLabels = ['whatsapp'=>'WhatsApp','email'=>'Correo','manual'=>'Manual'];
 $priorityLabels = ['low'=>'Baja','normal'=>'Normal','high'=>'Alta','urgent'=>'Urgente'];
+$quotationStatusLabels = ['draft'=>'Borrador','ready_for_review'=>'Lista para revisión','ready_to_send'=>'Lista para enviar','sent'=>'Enviada','negotiation'=>'En negociación','accepted'=>'Aceptada','rejected'=>'Rechazada','expired'=>'Vencida','cancelled'=>'Cancelada'];
 $now = time();
 $activeTasks = array_values(array_filter($tasks, static fn (array $task): bool => in_array($task['status'], ['pending','in_progress'], true)));
 usort($activeTasks, static fn (array $a, array $b): int => strtotime((string) $a['due_at']) <=> strtotime((string) $b['due_at']));
 $nextTask = $activeTasks[0] ?? null;
-$canQuote = ! empty($request['customer_id']) && ! in_array($request['status'], ['discarded','converted'], true);
+$canQuote = ! empty($request['customer_id']) && $quotation === null && ! in_array($request['status'], ['discarded','converted'], true);
 ?>
 
 <?php if (session('success')): ?><div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800"><?= esc(session('success')) ?></div><?php endif ?>
@@ -33,9 +34,36 @@ $canQuote = ! empty($request['customer_id']) && ! in_array($request['status'], [
     </div>
 </section>
 
+<section class="mt-6 rounded-2xl border border-cyan-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-700">Trazabilidad de origen</p>
+            <h2 class="mt-2 text-xl font-bold text-slate-950">Ruta comercial de esta oportunidad</h2>
+        </div>
+        <div class="flex flex-wrap items-center gap-3 text-sm">
+            <?php if (! empty($request['source_conversation_code'])): ?>
+                <a href="<?= route_to('customer_conversations.show', $request['source_conversation_id']) ?>" class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold text-slate-700 hover:border-cyan-300 hover:text-cyan-700">Atención <?= esc($request['source_conversation_code']) ?> ↗</a>
+                <span class="text-slate-300">→</span>
+            <?php else: ?>
+                <span class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold text-slate-500">Entrada manual</span>
+                <span class="text-slate-300">→</span>
+            <?php endif ?>
+            <span class="rounded-xl bg-cyan-100 px-4 py-3 font-bold text-cyan-900">Solicitud <?= esc($request['code']) ?></span>
+            <?php if ($quotation !== null): ?>
+                <span class="text-slate-300">→</span>
+                <a href="<?= route_to('quotations.show', $quotation['id']) ?>" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-800 hover:bg-emerald-100">Cotización <?= esc($quotation['code']) ?> ↗</a>
+                <?php if (! empty($quotation['service_case_id'])): ?>
+                    <span class="text-slate-300">→</span>
+                    <a href="<?= route_to('service_cases.show', $quotation['service_case_id']) ?>" class="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 font-semibold text-violet-800 hover:bg-violet-100">Expediente <?= esc($quotation['service_case_code']) ?> ↗</a>
+                <?php endif ?>
+            <?php endif ?>
+        </div>
+    </div>
+</section>
+
 <div class="mt-6 grid gap-4 md:grid-cols-3">
-    <?= view('components/workspace/metric-card', ['label'=>'Estado comercial','value'=>$statusLabels[$request['status']] ?? $request['status'],'description'=>'Solicitud formalizada y trazable.','tone'=>'cyan']) ?>
-    <?= view('components/workspace/metric-card', ['label'=>'Próxima acción','value'=>$nextTask['title'] ?? 'Preparar cotización','description'=>$nextTask ? 'Vence ' . date('d/m/Y H:i', strtotime((string) $nextTask['due_at'])) : 'Lista para continuar el flujo comercial.','tone'=>'violet']) ?>
+    <?= view('components/workspace/metric-card', ['label'=>'Estado comercial','value'=>$statusLabels[$request['status']] ?? $request['status'],'description'=>$quotation ? 'La solicitud ya produjo una cotización.' : 'Solicitud formalizada y trazable.','tone'=>'cyan']) ?>
+    <?= view('components/workspace/metric-card', ['label'=>'Próxima acción','value'=>$quotation ? ($quotationStatusLabels[$quotation['status']] ?? $quotation['status']) : ($nextTask['title'] ?? 'Preparar cotización'),'description'=>$quotation ? 'Continúa el flujo desde la cotización ' . $quotation['code'] . '.' : ($nextTask ? 'Vence ' . date('d/m/Y H:i', strtotime((string) $nextTask['due_at'])) : 'Lista para continuar el flujo comercial.'),'tone'=>'violet']) ?>
     <?= view('components/workspace/metric-card', ['label'=>'Actividad','value'=>count($events) . ' eventos','description'=>count($activeTasks) . ' tareas activas','tone'=>'slate']) ?>
 </div>
 
@@ -47,7 +75,6 @@ $canQuote = ! empty($request['customer_id']) && ! in_array($request['status'], [
                 <div><dt class="text-xs font-semibold uppercase text-slate-500">Cliente</dt><dd class="mt-1 font-semibold text-slate-950"><?= esc($request['business_name'] ?: 'Prospecto sin asociar') ?></dd></div>
                 <div><dt class="text-xs font-semibold uppercase text-slate-500">Contacto</dt><dd class="mt-1 font-semibold text-slate-950"><?= esc($request['contact_name'] ?: 'Sin seleccionar') ?></dd><?php if (! empty($request['contact_email'])): ?><dd class="mt-1 text-xs text-slate-500"><?= esc($request['contact_email']) ?></dd><?php endif ?></div>
                 <div><dt class="text-xs font-semibold uppercase text-slate-500">Recibida</dt><dd class="mt-1 font-semibold"><?= esc(date('d/m/Y H:i', strtotime((string) $request['received_at']))) ?></dd></div>
-                <?php if (! empty($request['source_conversation_code'])): ?><div><dt class="text-xs font-semibold uppercase text-slate-500">Atención de origen</dt><dd class="mt-1"><a class="font-semibold text-cyan-700" href="<?= route_to('customer_conversations.show', $request['source_conversation_id']) ?>"><?= esc($request['source_conversation_code']) ?> ↗</a></dd></div><?php endif ?>
             </dl>
         </section>
     </aside>
@@ -83,15 +110,21 @@ $canQuote = ! empty($request['customer_id']) && ! in_array($request['status'], [
             </div>
         </section>
 
-        <section class="rounded-2xl border <?= $canQuote ? 'border-cyan-200 bg-cyan-50' : 'border-amber-200 bg-amber-50' ?> p-6 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-[.18em] <?= $canQuote ? 'text-cyan-700' : 'text-amber-700' ?>">Siguiente etapa</p>
-            <h2 class="mt-2 text-lg font-bold <?= $canQuote ? 'text-cyan-950' : 'text-amber-950' ?>">Preparar cotización</h2>
-            <?php if ($canQuote): ?>
+        <section class="rounded-2xl border <?= $quotation ? 'border-emerald-200 bg-emerald-50' : ($canQuote ? 'border-cyan-200 bg-cyan-50' : 'border-amber-200 bg-amber-50') ?> p-6 shadow-sm">
+            <?php if ($quotation !== null): ?>
+                <p class="text-xs font-semibold uppercase tracking-[.18em] text-emerald-700">Resultado comercial</p>
+                <h2 class="mt-2 text-lg font-bold text-emerald-950">Cotización <?= esc($quotation['code']) ?></h2>
+                <p class="mt-2 text-sm leading-6 text-emerald-800">Esta solicitud ya completó la etapa de preparación de cotización. Continúa el proceso desde su Workspace.</p>
+                <a href="<?= route_to('quotations.show', $quotation['id']) ?>" class="mt-4 block w-full rounded-xl bg-emerald-700 px-5 py-3 text-center font-bold text-white hover:bg-emerald-800">Abrir cotización ↗</a>
+            <?php elseif ($canQuote): ?>
+                <p class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-700">Siguiente etapa</p>
+                <h2 class="mt-2 text-lg font-bold text-cyan-950">Preparar cotización</h2>
                 <p class="mt-2 text-sm leading-6 text-cyan-800">Inicia una cotización con cliente, contacto, agente y asunto precargados desde esta solicitud.</p>
                 <a href="<?= route_to('quotations.create') ?>?commercial_request_id=<?= esc((string) $request['id']) ?>" class="mt-4 block w-full rounded-xl bg-cyan-500 px-5 py-3 text-center font-bold text-white hover:bg-cyan-600">Preparar cotización ↗</a>
             <?php else: ?>
+                <p class="text-xs font-semibold uppercase tracking-[.18em] text-amber-700">Siguiente etapa</p>
+                <h2 class="mt-2 text-lg font-bold text-amber-950">Cotización no disponible</h2>
                 <p class="mt-2 text-sm leading-6 text-amber-800">Para cotizar primero debes asociar un cliente válido y mantener la solicitud activa.</p>
-                <button type="button" disabled class="mt-4 w-full cursor-not-allowed rounded-xl bg-amber-200 px-5 py-3 font-semibold text-amber-700">Cotización no disponible</button>
             <?php endif ?>
         </section>
     </aside>

@@ -49,9 +49,19 @@ class CommercialRequestsController extends BaseController
             ->get()
             ->getResultArray();
 
+        $quotation = $db->table('quotations')
+            ->select('quotations.id, quotations.code, quotations.status, quotations.total, service_cases.id AS service_case_id, service_cases.code AS service_case_code')
+            ->join('service_cases', 'service_cases.accepted_quotation_id = quotations.id AND service_cases.delete_date IS NULL', 'left')
+            ->where('quotations.commercial_request_id', $id)
+            ->where('quotations.delete_date', null)
+            ->orderBy('quotations.id', 'DESC')
+            ->get()
+            ->getRowArray();
+
         return view('commercial_requests/show', [
             'title' => $request['code'],
             'request' => $request,
+            'quotation' => $quotation,
             'tasks' => $tasks,
             'events' => (new ActivityEventModel())->forEntity('commercial_request', $id),
         ]);
@@ -154,14 +164,12 @@ class CommercialRequestsController extends BaseController
     private function nullable(string $field): ?string
     {
         $value = trim((string) $this->request->getPost($field));
-
         return $value === '' ? null : $value;
     }
 
     private function nullableInt(string $field): ?int
     {
         $value = trim((string) $this->request->getPost($field));
-
         return $value === '' ? null : (int) $value;
     }
 
@@ -170,7 +178,6 @@ class CommercialRequestsController extends BaseController
         $data = random_bytes(16);
         $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
         $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
-
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 }
