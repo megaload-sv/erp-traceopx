@@ -11,6 +11,15 @@ $nextTransitions = [
 ];
 $dbView = db_connect();
 $serviceCase = $dbView->table('service_cases')->where('accepted_quotation_id', $quotation['id'])->where('delete_date', null)->get()->getRowArray();
+$existingCatalogItems = [];
+foreach ($items as $quotationItem) {
+    if (! empty($quotationItem['commercial_item_id'])) {
+        $existingCatalogItems[(string) $quotationItem['commercial_item_id']] = [
+            'description' => (string) $quotationItem['description'],
+            'quantity' => (float) $quotationItem['quantity'],
+        ];
+    }
+}
 ?>
 <?php if (session('success')): ?><div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800"><?= esc(session('success')) ?></div><?php endif ?>
 <?php if (session('error')): ?><div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800"><?= esc(session('error')) ?></div><?php endif ?>
@@ -60,8 +69,9 @@ $serviceCase = $dbView->table('service_cases')->where('accepted_quotation_id', $
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-600">Conceptos cotizados</p><h3 class="mt-2 text-xl font-bold text-slate-950"><?= $items === [] ? 'Agrega el primer concepto' : count($items) . ' concepto(s) en la propuesta' ?></h3></div><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Sin impuestos por línea</span></div>
 
             <?php if ($quotation['status'] === 'draft'): ?>
-            <form method="post" action="<?= route_to('quotations.items.store', $quotation['id']) ?>" class="mt-6 rounded-2xl border border-cyan-200 bg-cyan-50/60 p-5">
+            <form id="quotation-item-form" method="post" action="<?= route_to('quotations.items.store', $quotation['id']) ?>" class="mt-6 rounded-2xl border border-cyan-200 bg-cyan-50/60 p-5">
                 <?= csrf_field() ?>
+                <input type="hidden" name="merge_duplicate" id="merge_duplicate" value="0">
                 <div class="flex flex-wrap gap-3 border-b border-cyan-200 pb-4">
                     <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm"><input type="radio" name="source_type" value="catalog" checked data-source-radio> Desde catálogo</label>
                     <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm"><input type="radio" name="source_type" value="manual" data-source-radio> Concepto manual</label>
@@ -75,7 +85,7 @@ $serviceCase = $dbView->table('service_cases')->where('accepted_quotation_id', $
                     <label class="block"><span class="mb-2 block text-sm font-semibold text-slate-700">Precio unitario *</span><input id="item_unit_price" type="number" name="unit_price" value="0.00" min="0" step="0.01" required class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"></label>
                     <div class="rounded-xl bg-slate-950 p-4 text-white"><p class="text-xs uppercase tracking-wide text-slate-400">Total estimado</p><p id="line_total_preview" class="mt-2 text-2xl font-bold">$0.00</p></div>
                 </div>
-                <button class="mt-5 rounded-xl bg-cyan-400 px-5 py-3 font-bold text-slate-950 hover:bg-cyan-300">Agregar concepto</button>
+                <button type="submit" class="mt-5 rounded-xl bg-cyan-400 px-5 py-3 font-bold text-slate-950 hover:bg-cyan-300">Agregar concepto</button>
             </form>
             <?php endif ?>
 
@@ -120,6 +130,26 @@ $serviceCase = $dbView->table('service_cases')->where('accepted_quotation_id', $
 </aside>
 <div id="acceptance-overlay" class="fixed inset-0 z-[110] hidden items-center justify-center bg-slate-950/70 p-6 backdrop-blur-sm"><div class="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-2xl"><div class="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-emerald-100 border-t-emerald-500"></div><h3 class="mt-5 text-xl font-bold text-slate-950">Creando expediente…</h3><p class="mt-2 text-sm leading-6 text-slate-500">Validando aceptación, generando hitos y calculando la próxima acción.</p></div></div>
 <?php endif ?>
+
+<div id="item-submit-overlay" class="fixed inset-0 z-[120] hidden items-center justify-center bg-slate-950/65 p-6 backdrop-blur-sm">
+    <div class="w-full max-w-sm rounded-3xl border border-white/20 bg-white p-8 text-center shadow-2xl">
+        <div class="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-cyan-100 border-t-cyan-500"></div>
+        <h3 class="mt-5 text-xl font-bold text-slate-950">Agregando servicio…</h3>
+        <p class="mt-2 text-sm leading-6 text-slate-500">Estamos actualizando la cotización. Esto tomará solo un momento.</p>
+    </div>
+</div>
+
+<div id="duplicate-item-modal" class="fixed inset-0 z-[125] hidden items-center justify-center bg-slate-950/65 p-6 backdrop-blur-sm">
+    <div class="w-full max-w-md rounded-3xl bg-white p-7 shadow-2xl">
+        <p class="text-xs font-bold uppercase tracking-[.18em] text-amber-600">Servicio ya incluido</p>
+        <h3 class="mt-2 text-2xl font-bold text-slate-950">¿Incrementar la cantidad?</h3>
+        <p id="duplicate-item-message" class="mt-3 text-sm leading-6 text-slate-600"></p>
+        <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button type="button" id="cancel-duplicate-item" class="rounded-xl border border-slate-300 px-5 py-3 font-semibold text-slate-700">Cancelar</button>
+            <button type="button" id="confirm-duplicate-item" class="rounded-xl bg-amber-500 px-5 py-3 font-bold text-white hover:bg-amber-400">Incrementar cantidad</button>
+        </div>
+    </div>
+</div>
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
@@ -148,11 +178,68 @@ document.addEventListener('DOMContentLoaded', () => {
     const quantity = document.getElementById('item_quantity');
     const price = document.getElementById('item_unit_price');
     const preview = document.getElementById('line_total_preview');
+    const itemForm = document.getElementById('quotation-item-form');
+    const mergeDuplicate = document.getElementById('merge_duplicate');
+    const itemOverlay = document.getElementById('item-submit-overlay');
+    const duplicateModal = document.getElementById('duplicate-item-modal');
+    const duplicateMessage = document.getElementById('duplicate-item-message');
+    const confirmDuplicate = document.getElementById('confirm-duplicate-item');
+    const cancelDuplicate = document.getElementById('cancel-duplicate-item');
+    const existingCatalogItems = <?= json_encode($existingCatalogItems, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+
+    const showItemOverlayAndSubmit = () => {
+        if (!itemForm || itemForm.dataset.submitting === 'true') return;
+        itemForm.dataset.submitting = 'true';
+        itemForm.querySelectorAll('button, input, select, textarea').forEach(control => control.disabled = true);
+        if (mergeDuplicate) mergeDuplicate.disabled = false;
+        itemOverlay?.classList.replace('hidden', 'flex');
+        HTMLFormElement.prototype.submit.call(itemForm);
+    };
+
+    if (itemForm) {
+        itemForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            if (itemForm.dataset.submitting === 'true') return;
+
+            const sourceType = itemForm.querySelector('[name="source_type"]:checked')?.value;
+            const selectedCatalogId = catalogSelect?.value || '';
+            const enteredQuantity = parseFloat(quantity?.value || '0') || 0;
+            const existing = sourceType === 'catalog' ? existingCatalogItems[selectedCatalogId] : null;
+
+            if (existing && mergeDuplicate?.value !== '1') {
+                const resultingQuantity = Number(existing.quantity) + enteredQuantity;
+                duplicateMessage.textContent = `“${existing.description}” ya tiene una cantidad de ${Number(existing.quantity).toLocaleString('es-SV')}. Al continuar se agregarán ${enteredQuantity.toLocaleString('es-SV')} y la nueva cantidad será ${resultingQuantity.toLocaleString('es-SV')}. Se conservará el precio de la línea existente.`;
+                duplicateModal?.classList.replace('hidden', 'flex');
+                return;
+            }
+
+            showItemOverlayAndSubmit();
+        });
+    }
+
+    confirmDuplicate?.addEventListener('click', () => {
+        if (mergeDuplicate) mergeDuplicate.value = '1';
+        duplicateModal?.classList.replace('flex', 'hidden');
+        showItemOverlayAndSubmit();
+    });
+
+    cancelDuplicate?.addEventListener('click', () => {
+        duplicateModal?.classList.replace('flex', 'hidden');
+        if (mergeDuplicate) mergeDuplicate.value = '0';
+    });
+
+    duplicateModal?.addEventListener('click', (event) => {
+        if (event.target === duplicateModal) {
+            duplicateModal.classList.replace('flex', 'hidden');
+            if (mergeDuplicate) mergeDuplicate.value = '0';
+        }
+    });
+
     if (!description || !quantity || !price || !preview) return;
     const updatePreview = () => preview.textContent = '$' + ((parseFloat(quantity.value) || 0) * (parseFloat(price.value) || 0)).toFixed(2);
     quantity.addEventListener('input', updatePreview); price.addEventListener('input', updatePreview);
-    document.querySelectorAll('[data-source-radio]').forEach(radio => radio.addEventListener('change', () => { const catalogMode = document.querySelector('[data-source-radio]:checked').value === 'catalog'; catalogField.classList.toggle('hidden', !catalogMode); if (!catalogMode) { description.value = ''; longDescription.value = ''; price.value = '0.00'; updatePreview(); } }));
-    if (catalogSelect) catalogSelect.addEventListener('change', () => { const option = catalogSelect.options[catalogSelect.selectedIndex]; if (!option || !option.value) return; description.value = option.dataset.name || ''; longDescription.value = option.dataset.description || ''; price.value = option.dataset.price || '0.00'; const unitId = option.dataset.unit || ''; const instance = window.traceOpxChoices.get(unitSelect); if (instance) instance.setChoiceByValue(unitId); else unitSelect.value = unitId; updatePreview(); });
+    document.querySelectorAll('[data-source-radio]').forEach(radio => radio.addEventListener('change', () => { const catalogMode = document.querySelector('[data-source-radio]:checked').value === 'catalog'; catalogField.classList.toggle('hidden', !catalogMode); if (mergeDuplicate) mergeDuplicate.value = '0'; if (!catalogMode) { description.value = ''; longDescription.value = ''; price.value = '0.00'; updatePreview(); } }));
+    if (catalogSelect) catalogSelect.addEventListener('change', () => { const option = catalogSelect.options[catalogSelect.selectedIndex]; if (!option || !option.value) return; if (mergeDuplicate) mergeDuplicate.value = '0'; description.value = option.dataset.name || ''; longDescription.value = option.dataset.description || ''; price.value = option.dataset.price || '0.00'; const unitId = option.dataset.unit || ''; const instance = window.traceOpxChoices.get(unitSelect); if (instance) instance.setChoiceByValue(unitId); else unitSelect.value = unitId; updatePreview(); });
     updatePreview();
 });
 </script>
