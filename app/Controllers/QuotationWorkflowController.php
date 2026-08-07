@@ -54,9 +54,15 @@ class QuotationWorkflowController extends BaseController
             if (! in_array($file->getMimeType(), $allowedMime, true)) {
                 return redirect()->back()->withInput()->with('error', 'La evidencia debe ser PDF, JPG, PNG o WEBP.');
             }
+
+            $uploadDirectory = WRITEPATH . 'uploads/quotation_acceptances';
+            if (! is_dir($uploadDirectory) && ! mkdir($uploadDirectory, 0775, true) && ! is_dir($uploadDirectory)) {
+                return redirect()->back()->withInput()->with('error', 'No fue posible preparar el almacenamiento de evidencias.');
+            }
+
             $originalName = $file->getClientName();
             $storedName = $file->getRandomName();
-            $file->move(WRITEPATH . 'uploads/quotation_acceptances', $storedName);
+            $file->move($uploadDirectory, $storedName);
             $evidencePath = 'quotation_acceptances/' . $storedName;
         }
 
@@ -64,9 +70,14 @@ class QuotationWorkflowController extends BaseController
             return redirect()->back()->withInput()->with('error', 'Adjunte la evidencia de aceptación correspondiente.');
         }
 
+        $acceptedAt = str_replace('T', ' ', trim((string) $this->request->getPost('accepted_at')));
+        if ($acceptedAt !== '' && strlen($acceptedAt) === 16) {
+            $acceptedAt .= ':00';
+        }
+
         try {
             $caseId = (new QuotationAcceptanceService())->accept($quotationId, [
-                'accepted_at' => (string) ($this->request->getPost('accepted_at') ?: date('Y-m-d H:i:s')),
+                'accepted_at' => $acceptedAt ?: date('Y-m-d H:i:s'),
                 'accepted_by_name' => (string) $this->request->getPost('accepted_by_name'),
                 'acceptance_type' => $acceptanceType,
                 'fiscal_document_type' => $fiscalType,
