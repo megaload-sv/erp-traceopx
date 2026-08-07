@@ -75,9 +75,12 @@ class QuotationWorkflowController extends BaseController
             $acceptedAt .= ':00';
         }
 
+        $contactId = (int) $this->request->getPost('customer_contact_id');
+
         try {
             $caseId = (new QuotationAcceptanceService())->accept($quotationId, [
                 'accepted_at' => $acceptedAt ?: date('Y-m-d H:i:s'),
+                'customer_contact_id' => $contactId > 0 ? $contactId : null,
                 'accepted_by_name' => (string) $this->request->getPost('accepted_by_name'),
                 'acceptance_type' => $acceptanceType,
                 'fiscal_document_type' => $fiscalType,
