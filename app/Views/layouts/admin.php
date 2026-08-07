@@ -27,29 +27,11 @@
 </aside>
 <main class="flex-1"><header class="border-b border-slate-200 bg-white px-6 py-5"><div class="mx-auto flex max-w-7xl items-center justify-between gap-4"><div><p class="text-sm text-slate-500">Panel administrativo</p><h2 class="text-xl font-bold"><?= esc($title??'ERP TraceOPX') ?></h2></div><div class="flex items-center gap-3"><div class="hidden text-right sm:block"><p class="text-sm font-semibold"><?= esc((string)session('auth_user_name')) ?></p><p class="text-xs text-slate-500"><?= esc((string)session('auth_user_email')) ?></p></div><form method="post" action="<?= route_to('logout') ?>"><?= csrf_field() ?><button class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Salir</button></form></div></div></header><section class="mx-auto max-w-7xl p-6"><?= $this->renderSection('content') ?></section></main>
 </div>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.12/pdfmake.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.12/vfs_fonts.js"></script><script src="https://cdn.datatables.net/2.3.8/js/dataTables.min.js"></script><script src="https://cdn.datatables.net/buttons/3.2.6/js/dataTables.buttons.min.js"></script><script src="https://cdn.datatables.net/buttons/3.2.6/js/buttons.html5.min.js"></script><script src="https://cdn.datatables.net/buttons/3.2.6/js/buttons.print.min.js"></script><script src="https://cdn.datatables.net/buttons/3.2.6/js/buttons.colVis.min.js"></script>
 <script>
 window.traceOpxChoices=new Map();window.initTraceOpxSelect=function(s){if(!s||s.dataset.native==='true'||window.traceOpxChoices.has(s))return null;const i=new Choices(s,{searchEnabled:true,shouldSort:false,itemSelectText:'',allowHTML:false,searchPlaceholderValue:'Buscar por código o descripción',noResultsText:'Sin resultados',noChoicesText:'Sin opciones disponibles',placeholder:true,placeholderValue:s.dataset.placeholder||'Seleccionar'});window.traceOpxChoices.set(s,i);return i};
 window.traceOpxTables=new Map();window.initTraceOpxTable=function(t){if(!t||window.traceOpxTables.has(t))return null;const title=t.dataset.exportTitle||document.title;const i=new DataTable(t,{stateSave:true,pageLength:25,lengthMenu:[10,25,50,100],order:[],layout:{topStart:'pageLength',topEnd:{search:{placeholder:'Buscar en el listado'}},top2Start:{buttons:[{extend:'colvis',text:'Columnas'},{extend:'csvHtml5',text:'CSV',title},{extend:'excelHtml5',text:'Excel',title},{extend:'pdfHtml5',text:'PDF',title,orientation:'landscape',pageSize:'A4'},{extend:'print',text:'Imprimir',title}]},bottomStart:'info',bottomEnd:'paging'},language:{search:'Buscar:',lengthMenu:'Mostrar _MENU_ registros',info:'Mostrando _START_ a _END_ de _TOTAL_ registros',infoEmpty:'Sin registros disponibles',infoFiltered:'(filtrado de _MAX_ registros)',zeroRecords:'No se encontraron coincidencias',emptyTable:'No hay información disponible',paginate:{first:'Primero',previous:'Anterior',next:'Siguiente',last:'Último'}}});window.traceOpxTables.set(t,i);return i};
-
-// Preserve the CSRF field for the quotation item form even when its UI controls are disabled.
-document.addEventListener('submit',(event)=>{
-    const form=event.target;
-    if(!(form instanceof HTMLFormElement)||form.id!=='quotation-item-form')return;
-    const token=form.querySelector('input[type="hidden"]:not([name="merge_duplicate"])');
-    if(!token||!token.name)return;
-    let mirror=document.getElementById('quotation-item-csrf-mirror');
-    if(!mirror){
-        mirror=document.createElement('input');
-        mirror.type='hidden';
-        mirror.id='quotation-item-csrf-mirror';
-        mirror.setAttribute('form','quotation-item-form');
-        document.body.appendChild(mirror);
-    }
-    mirror.name=token.name;
-    mirror.value=token.value;
-},true);
-
 document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('select:not([data-native="true"])').forEach(window.initTraceOpxSelect);document.querySelectorAll('table[data-trace-table="true"]').forEach(window.initTraceOpxTable)});
 </script>
 <?= $this->renderSection('scripts') ?>
