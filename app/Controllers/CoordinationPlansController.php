@@ -249,7 +249,6 @@ class CoordinationPlansController extends BaseController
             'coordination_plan_id' => $planId,
             'equipment_id' => $equipmentId,
             'assignment_status' => 'planned',
-            'status' => 1,
             'entry_user' => $this->actor(),
             'entry_date' => date('Y-m-d H:i:s'),
         ]);
