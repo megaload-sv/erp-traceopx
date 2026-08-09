@@ -80,7 +80,12 @@ window.TraceOpxProcessing={
 
 document.addEventListener('submit',event=>{
     const form=event.target;
-    if(!(form instanceof HTMLFormElement)||form.dataset.processing==='true')return;
+    if(!(form instanceof HTMLFormElement))return;
+    if(form.dataset.processing==='true'||window.TraceOpxProcessing.active){
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+    }
     const message=window.TraceOpxProcessing.messageFor(form);
     if(!message)return;
     if(!form.checkValidity())return;
