@@ -60,6 +60,35 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('(:num)', 'ServiceCasesController::show/$1', ['as' => 'service_cases.show']);
     });
 
+    $routes->group('coordination', static function (RouteCollection $routes): void {
+        $routes->get('', 'CoordinationPlansController::index', ['as' => 'coordination.index']);
+        $routes->get('service-case/(:num)/create', 'CoordinationPlansController::create/$1', ['as' => 'coordination.create']);
+        $routes->post('service-case/(:num)', 'CoordinationPlansController::store/$1', ['as' => 'coordination.store']);
+        $routes->get('(:num)', 'CoordinationPlansController::show/$1', ['as' => 'coordination.show']);
+        $routes->post('(:num)/planning', 'CoordinationPlanningController::update/$1', ['as' => 'coordination.planning.update']);
+        $routes->post('(:num)/equipment', 'CoordinationPlansController::addEquipment/$1', ['as' => 'coordination.equipment.add']);
+        $routes->post('(:num)/approve', 'CoordinationPlansController::approve/$1', ['as' => 'coordination.approve']);
+        $routes->post('(:num)/resources/role', 'CoordinationResourcesController::reserveRole/$1', ['as' => 'coordination.resources.role']);
+        $routes->post('(:num)/resources/mission-leader', 'CoordinationResourcesController::reserveMissionLeader/$1', ['as' => 'coordination.resources.mission_leader']);
+        $routes->post('(:num)/resources/(:num)/release', 'CoordinationResourcesController::release/$1/$2', ['as' => 'coordination.resources.release']);
+    });
+
+    $routes->group('equipment', static function (RouteCollection $routes): void {
+        $routes->get('', 'EquipmentController::index', ['as' => 'equipment.index']);
+        $routes->get('create', 'EquipmentController::create', ['as' => 'equipment.create']);
+        $routes->post('', 'EquipmentController::store', ['as' => 'equipment.store']);
+        $routes->get('(:num)/edit', 'EquipmentController::edit/$1', ['as' => 'equipment.edit']);
+        $routes->post('(:num)', 'EquipmentController::update/$1', ['as' => 'equipment.update']);
+    });
+
+    $routes->group('employees', static function (RouteCollection $routes): void {
+        $routes->get('', 'EmployeesController::index', ['as' => 'employees.index']);
+        $routes->get('create', 'EmployeesController::create', ['as' => 'employees.create']);
+        $routes->post('', 'EmployeesController::store', ['as' => 'employees.store']);
+        $routes->get('(:num)/edit', 'EmployeesController::edit/$1', ['as' => 'employees.edit']);
+        $routes->post('(:num)', 'EmployeesController::update/$1', ['as' => 'employees.update']);
+    });
+
     $routes->group('commercial-items', static function (RouteCollection $routes): void {
         $routes->get('', 'CommercialItemsController::index', ['as' => 'commercial_items.index']);
         $routes->post('', 'CommercialItemsController::store', ['as' => 'commercial_items.store']);
