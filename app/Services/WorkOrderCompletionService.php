@@ -75,6 +75,11 @@ class WorkOrderCompletionService
             throw new RuntimeException('La fecha de finalización no puede estar en el futuro.');
         }
 
+        $readiness = $this->readiness($workOrderId);
+        if (! $readiness['ready']) {
+            throw new RuntimeException(implode(' ', $readiness['blocking_reasons']));
+        }
+
         $db->transBegin();
         try {
             $order = $db->query(
@@ -92,9 +97,15 @@ class WorkOrderCompletionService
                 throw new RuntimeException('La finalización no puede ser anterior al inicio real del servicio.');
             }
 
-            $readiness = $this->readiness($workOrderId);
-            if (! $readiness['ready']) {
-                throw new RuntimeException(implode(' ', $readiness['blocking_reasons']));
+            if ($db->tableExists('work_order_incidents')) {
+                $criticalIncidents = $db->table('work_order_incidents')
+                    ->where('work_order_id', $workOrderId)
+                    ->where('status', 'open')
+                    ->where('severity', 'critical')
+                    ->countAllResults();
+                if ($criticalIncidents > 0) {
+                    throw new RuntimeException('Existen incidencias críticas abiertas que deben resolverse antes de finalizar.');
+                }
             }
 
             $teamRows = $db->table('work_order_team')->where('work_order_id', $workOrderId)->get()->getResultArray();
