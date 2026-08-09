@@ -143,6 +143,7 @@ class WorkOrderService
             );
 
             $db->transCommit();
+            (new ProcessEngineService())->evaluate((int) $plan['service_case_id']);
             return (int) $workOrderId;
         } catch (Throwable $e) {
             $db->transRollback();
@@ -201,7 +202,7 @@ class WorkOrderService
             ]);
 
             $db->table('service_cases')->where('id', (int) $order['service_case_id'])->update([
-                'current_stage' => 'work_order',
+                'current_stage' => 'execution',
                 'operational_status' => 'scheduled',
                 'next_action_code' => 'work_order.start',
                 'next_action_label' => 'Iniciar ejecución de Orden de Trabajo',
@@ -230,6 +231,7 @@ class WorkOrderService
             );
 
             $db->transCommit();
+            (new ProcessEngineService())->evaluate((int) $order['service_case_id']);
         } catch (Throwable $e) {
             $db->transRollback();
             throw $e;
