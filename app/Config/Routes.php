@@ -73,6 +73,12 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('(:num)/resources/(:num)/release', 'CoordinationResourcesController::release/$1/$2', ['as' => 'coordination.resources.release']);
     });
 
+    $routes->group('work-orders', static function (RouteCollection $routes): void {
+        $routes->get('', 'WorkOrdersController::index', ['as' => 'work_orders.index']);
+        $routes->post('coordination/(:num)', 'WorkOrdersController::createFromCoordination/$1', ['as' => 'work_orders.from_coordination']);
+        $routes->get('(:num)', 'WorkOrdersController::show/$1', ['as' => 'work_orders.show']);
+    });
+
     $routes->group('equipment', static function (RouteCollection $routes): void {
         $routes->get('', 'EquipmentController::index', ['as' => 'equipment.index']);
         $routes->get('create', 'EquipmentController::create', ['as' => 'equipment.create']);
