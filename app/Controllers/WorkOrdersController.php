@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Models\WorkOrderModel;
+use App\Services\MissionLogService;
 use App\Services\WorkOrderService;
 use CodeIgniter\HTTP\RedirectResponse;
 use RuntimeException;
@@ -76,6 +77,31 @@ class WorkOrdersController extends BaseController
         }
     }
 
+    public function addMissionLog(int $id): RedirectResponse
+    {
+        try {
+            (new MissionLogService())->addManualEntry(
+                $id,
+                (string) $this->request->getPost('event_type'),
+                (string) $this->request->getPost('description'),
+                (string) $this->request->getPost('occurred_at'),
+                (string) $this->request->getPost('publish_to_case') === '1'
+            );
+
+            return redirect()->to(route_to('work_orders.show', $id))
+                ->with('success', 'Avance operativo registrado en la bitácora de la misión.');
+        } catch (Throwable $e) {
+            log_message('error', 'Error registrando Mission Log en OT {id}: {message}', [
+                'id' => $id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return redirect()->to(route_to('work_orders.show', $id))
+                ->withInput()
+                ->with('error', $e->getMessage());
+        }
+    }
+
     public function show(int $id): string
     {
         $order = (new WorkOrderModel())->detail($id);
@@ -105,6 +131,7 @@ class WorkOrdersController extends BaseController
             'equipment' => $equipment,
             'team' => $team,
             'missionLogs' => $missionLogs,
+            'missionLogEventTypes' => (new MissionLogService())->eventTypes(),
         ]);
     }
 }
