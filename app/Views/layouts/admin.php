@@ -56,6 +56,7 @@ window.TraceOpxProcessing={
         if(action.includes('/work-orders/')&&action.endsWith('/issue'))return 'Emitiendo Orden de Trabajo…';
         if(action.includes('/work-orders/')&&action.endsWith('/start'))return 'Iniciando servicio…';
         if(action.includes('/mission-log'))return 'Registrando avance operativo…';
+        if(action.includes('/checklist/'))return 'Actualizando checklist operativo…';
         if(action.includes('/evidence'))return 'Guardando evidencia…';
         return null;
     },
