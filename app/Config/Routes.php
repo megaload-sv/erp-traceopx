@@ -60,6 +60,13 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('(:num)', 'ServiceCasesController::show/$1', ['as' => 'service_cases.show']);
     });
 
+    $routes->group('coordination', static function (RouteCollection $routes): void {
+        $routes->get('', 'CoordinationPlansController::index', ['as' => 'coordination.index']);
+        $routes->get('service-case/(:num)/create', 'CoordinationPlansController::create/$1', ['as' => 'coordination.create']);
+        $routes->post('service-case/(:num)', 'CoordinationPlansController::store/$1', ['as' => 'coordination.store']);
+        $routes->get('(:num)', 'CoordinationPlansController::show/$1', ['as' => 'coordination.show']);
+    });
+
     $routes->group('equipment', static function (RouteCollection $routes): void {
         $routes->get('', 'EquipmentController::index', ['as' => 'equipment.index']);
         $routes->get('create', 'EquipmentController::create', ['as' => 'equipment.create']);
