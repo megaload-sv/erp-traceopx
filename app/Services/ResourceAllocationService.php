@@ -16,7 +16,6 @@ class ResourceAllocationService
 
         $equipmentCount = $db->table('coordination_plan_equipment')
             ->where('coordination_plan_id', $coordinationPlanId)
-            ->where('status', 1)
             ->where('delete_date', null)
             ->countAllResults();
 
