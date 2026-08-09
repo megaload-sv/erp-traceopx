@@ -45,6 +45,15 @@ class ServiceCasesController extends BaseController
 
         $evaluation = (new ProcessEngineService())->evaluate($id);
         $db = db_connect();
+        $coordinationPlan = null;
+        if ($db->tableExists('coordination_plans')) {
+            $coordinationPlan = $db->table('coordination_plans')
+                ->where('service_case_id', $id)
+                ->where('delete_date', null)
+                ->orderBy('id', 'DESC')
+                ->get(1)
+                ->getRowArray();
+        }
 
         return view('service_cases/show', [
             'title' => 'Expediente ' . $case['code'],
@@ -56,6 +65,7 @@ class ServiceCasesController extends BaseController
             'milestones' => $evaluation['milestones'],
             'exceptions' => $evaluation['exceptions'],
             'nextAction' => $evaluation['next_action'],
+            'coordinationPlan' => $coordinationPlan,
             'events' => $db->table('service_case_events')
                 ->where('service_case_id', $id)
                 ->orderBy('occurred_at', 'DESC')
