@@ -67,21 +67,41 @@ class CoordinationPlansController extends BaseController
             return redirect()->to(route_to('service_cases.show', $serviceCaseId))->with('error', 'El expediente ya tiene un plan de coordinación.');
         }
 
-        $db = db_connect();
-        $db->transBegin();
         try {
+            $equipmentIds = $this->validatedEquipmentIds((array) $this->request->getPost('equipment_ids'));
+            $scheduledStart = $this->nullableDateTime('scheduled_start_at');
+            $estimatedEnd = $this->nullableDateTime('estimated_end_at');
+            $location = $this->nullable('location');
+            $scopeNotes = $this->nullable('scope_notes');
+
+            if ($scheduledStart === null || $estimatedEnd === null) {
+                throw new RuntimeException('Defina la fecha programada y el fin estimado de la coordinación.');
+            }
+            if (strtotime($estimatedEnd) <= strtotime($scheduledStart)) {
+                throw new RuntimeException('El fin estimado debe ser posterior a la fecha programada.');
+            }
+            if ($location === null) {
+                throw new RuntimeException('Ingrese el lugar de ejecución del servicio.');
+            }
+            if ($scopeNotes === null) {
+                throw new RuntimeException('Ingrese el alcance operativo de la coordinación.');
+            }
+
+            $db = db_connect();
+            $db->transBegin();
+
             $id = $model->insert([
                 'uuid' => $this->uuidV4(),
                 'code' => $this->nextCode(),
                 'service_case_id' => $serviceCaseId,
                 'requested_start_at' => $this->nullableDateTime('requested_start_at'),
-                'scheduled_start_at' => $this->nullableDateTime('scheduled_start_at'),
-                'estimated_end_at' => $this->nullableDateTime('estimated_end_at'),
-                'location' => $this->nullable('location'),
+                'scheduled_start_at' => $scheduledStart,
+                'estimated_end_at' => $estimatedEnd,
+                'location' => $location,
                 'location_reference' => $this->nullable('location_reference'),
                 'priority' => (string) ($this->request->getPost('priority') ?: 'normal'),
                 'status' => 'draft',
-                'scope_notes' => $this->nullable('scope_notes'),
+                'scope_notes' => $scopeNotes,
                 'coordination_notes' => $this->nullable('coordination_notes'),
                 'prepared_by_user_id' => session('auth_user_id') ?: null,
                 'prepared_at' => date('Y-m-d H:i:s'),
@@ -91,40 +111,82 @@ class CoordinationPlansController extends BaseController
                 throw new RuntimeException('No fue posible crear el plan operativo.');
             }
 
-            foreach ((array) $this->request->getPost('equipment_ids') as $equipmentId) {
-                $equipmentId = (int) $equipmentId;
-                if ($equipmentId <= 0) continue;
-                $equipment = (new EquipmentModel())->find($equipmentId);
-                if ($equipment === null || $equipment['operational_status'] !== 'available' || ! in_array($equipment['maintenance_status'], ['ok','preventive_due'], true)) {
-                    throw new RuntimeException('Uno de los equipos seleccionados ya no está disponible para planificación.');
-                }
-                $db->table('coordination_plan_equipment')->insert([
-                    'coordination_plan_id' => $id,
-                    'equipment_id' => $equipmentId,
-                    'assignment_status' => 'planned',
-                    'status' => 1,
-                    'entry_user' => (string) (session('auth_user_email') ?: 'system'),
-                    'entry_date' => date('Y-m-d H:i:s'),
-                ]);
+            foreach ($equipmentIds as $equipmentId) {
+                $this->insertPlannedEquipment($db, (int) $id, $equipmentId);
             }
 
             $db->table('service_case_events')->insert([
                 'service_case_id' => $serviceCaseId,
                 'event_code' => 'coordination.plan_created',
                 'title' => 'Plan de coordinación creado',
-                'description' => 'Se inició la planificación operativa del servicio.',
+                'description' => 'Se inició la planificación operativa del servicio con ' . count($equipmentIds) . ' equipo(s) previsto(s).',
                 'occurred_at' => date('Y-m-d H:i:s'),
-                'entry_user' => (string) (session('auth_user_email') ?: 'system'),
+                'entry_user' => $this->actor(),
                 'entry_date' => date('Y-m-d H:i:s'),
             ]);
             (new ActivityService())->record('coordination_plan', (int) $id, 'coordination.plan_created', 'Plan operativo creado', 'Expediente #' . $serviceCaseId);
-            $db->transCommit();
 
+            $db->transCommit();
             return redirect()->to(route_to('coordination.show', $id))->with('success', 'Plan de coordinación creado correctamente.');
         } catch (Throwable $e) {
-            $db->transRollback();
+            if (isset($db)) {
+                $db->transRollback();
+            }
             log_message('error', 'Error creando coordinación: {message}', ['message' => $e->getMessage()]);
             return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
+    }
+
+    public function addEquipment(int $id): RedirectResponse
+    {
+        $plan = (new CoordinationPlanModel())->find($id);
+        if ($plan === null || $plan['delete_date'] !== null) {
+            return redirect()->to(route_to('coordination.index'))->with('error', 'Plan de coordinación no encontrado.');
+        }
+        if ($plan['status'] !== 'draft') {
+            return redirect()->to(route_to('coordination.show', $id))->with('error', 'La maquinaria solo puede modificarse mientras la coordinación está en preparación.');
+        }
+
+        try {
+            $equipmentIds = $this->validatedEquipmentIds((array) $this->request->getPost('equipment_ids'));
+            $db = db_connect();
+            $db->transBegin();
+            $added = 0;
+
+            foreach ($equipmentIds as $equipmentId) {
+                $exists = $db->table('coordination_plan_equipment')
+                    ->where('coordination_plan_id', $id)
+                    ->where('equipment_id', $equipmentId)
+                    ->where('delete_date', null)
+                    ->get()->getRowArray();
+                if ($exists !== null) {
+                    continue;
+                }
+                $this->insertPlannedEquipment($db, $id, $equipmentId);
+                $added++;
+            }
+
+            if ($added === 0) {
+                throw new RuntimeException('Los equipos seleccionados ya pertenecen a esta coordinación.');
+            }
+
+            $db->table('service_case_events')->insert([
+                'service_case_id' => (int) $plan['service_case_id'],
+                'event_code' => 'coordination.equipment_added',
+                'title' => 'Maquinaria agregada a coordinación',
+                'description' => 'Se agregaron ' . $added . ' equipo(s) al plan operativo.',
+                'occurred_at' => date('Y-m-d H:i:s'),
+                'entry_user' => $this->actor(),
+                'entry_date' => date('Y-m-d H:i:s'),
+            ]);
+
+            $db->transCommit();
+            return redirect()->to(route_to('coordination.show', $id))->with('success', 'Maquinaria agregada correctamente. TraceOPX recalculó los requisitos humanos.');
+        } catch (Throwable $e) {
+            if (isset($db)) {
+                $db->transRollback();
+            }
+            return redirect()->to(route_to('coordination.show', $id))->with('error', $e->getMessage());
         }
     }
 
@@ -142,19 +204,62 @@ class CoordinationPlansController extends BaseController
             ->get()->getResultArray();
 
         $resourceWorkspace = (new ResourceAllocationService())->workspace($id);
+        $assignedEquipmentIds = array_map('intval', array_column($equipment, 'equipment_id'));
+        $availableToAdd = array_values(array_filter(
+            $this->availableEquipment(),
+            static fn(array $item): bool => ! in_array((int) $item['id'], $assignedEquipmentIds, true)
+        ));
 
         return view('coordination/show', [
             'title' => 'Coordinación ' . $plan['code'],
             'plan' => $plan,
             'equipment' => $equipment,
+            'equipmentAvailableToAdd' => $availableToAdd,
             'requirements' => $resourceWorkspace['requirements'],
             'resourceWorkspace' => $resourceWorkspace,
+        ]);
+    }
+
+    private function validatedEquipmentIds(array $values): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $values), static fn(int $id): bool => $id > 0)));
+        if ($ids === []) {
+            throw new RuntimeException('Seleccione al menos una maquinaria o equipo para crear la coordinación.');
+        }
+
+        foreach ($ids as $equipmentId) {
+            $equipment = (new EquipmentModel())->find($equipmentId);
+            if ($equipment === null || (int) $equipment['status'] !== 1 || $equipment['delete_date'] !== null) {
+                throw new RuntimeException('Uno de los equipos seleccionados no existe o está inactivo.');
+            }
+            if ($equipment['operational_status'] !== 'available') {
+                throw new RuntimeException($equipment['code'] . ' · ' . $equipment['name'] . ' no está disponible para planificación.');
+            }
+            if (! in_array($equipment['maintenance_status'], ['ok', 'preventive_due'], true)) {
+                throw new RuntimeException($equipment['code'] . ' · ' . $equipment['name'] . ' no puede planificarse por su estado de mantenimiento.');
+            }
+        }
+
+        return $ids;
+    }
+
+    private function insertPlannedEquipment($db, int $planId, int $equipmentId): void
+    {
+        $db->table('coordination_plan_equipment')->insert([
+            'coordination_plan_id' => $planId,
+            'equipment_id' => $equipmentId,
+            'assignment_status' => 'planned',
+            'status' => 1,
+            'entry_user' => $this->actor(),
+            'entry_date' => date('Y-m-d H:i:s'),
         ]);
     }
 
     private function availableEquipment(): array
     {
         return (new EquipmentModel())
+            ->where('status', 1)
+            ->where('delete_date', null)
             ->where('operational_status', 'available')
             ->whereIn('maintenance_status', ['ok','preventive_due'])
             ->orderBy('code')->findAll();
@@ -178,7 +283,19 @@ class CoordinationPlansController extends BaseController
     private function nullableDateTime(string $field): ?string
     {
         $value = trim((string) $this->request->getPost($field));
-        return $value === '' ? null : date('Y-m-d H:i:s', strtotime($value));
+        if ($value === '') {
+            return null;
+        }
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            throw new RuntimeException('Una de las fechas ingresadas no es válida.');
+        }
+        return date('Y-m-d H:i:s', $timestamp);
+    }
+
+    private function actor(): string
+    {
+        return (string) (session('auth_user_email') ?: 'system');
     }
 
     private function uuidV4(): string
