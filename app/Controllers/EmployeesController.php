@@ -50,15 +50,22 @@ class EmployeesController extends BaseController
             if($id===null){$data['uuid']=$this->uuidV4();$id=(int)$model->insert($data,true);} else {$model->update($id,$data);}
 
             $db->table('employee_skill_assignments')->where('employee_id',$id)->delete();
+            $levels=(array)$this->request->getPost('proficiency_level');
+            $certifications=(array)$this->request->getPost('certification_number');
+            $validFrom=(array)$this->request->getPost('valid_from');
+            $validUntil=(array)$this->request->getPost('valid_until');
+            $skillNotes=(array)$this->request->getPost('skill_notes');
+
             foreach((array)$this->request->getPost('skill_id') as $skillId){
                 $skillId=(int)$skillId; if($skillId<=0) continue;
+                $level=trim((string)($levels[$skillId] ?? ''));
                 $db->table('employee_skill_assignments')->insert([
                     'employee_id'=>$id,'skill_id'=>$skillId,
-                    'proficiency_level'=>(string)($this->request->getPost('proficiency_level')[$skillId] ?? 'qualified'),
-                    'certification_number'=>trim((string)($this->request->getPost('certification_number')[$skillId] ?? '')) ?: null,
-                    'valid_from'=>trim((string)($this->request->getPost('valid_from')[$skillId] ?? '')) ?: null,
-                    'valid_until'=>trim((string)($this->request->getPost('valid_until')[$skillId] ?? '')) ?: null,
-                    'notes'=>trim((string)($this->request->getPost('skill_notes')[$skillId] ?? '')) ?: null,
+                    'proficiency_level'=>$level !== '' ? $level : null,
+                    'certification_number'=>trim((string)($certifications[$skillId] ?? '')) ?: null,
+                    'valid_from'=>trim((string)($validFrom[$skillId] ?? '')) ?: null,
+                    'valid_until'=>trim((string)($validUntil[$skillId] ?? '')) ?: null,
+                    'notes'=>trim((string)($skillNotes[$skillId] ?? '')) ?: null,
                     'status'=>1,'entry_user'=>(string)(session('auth_user_email') ?: 'system'),'entry_date'=>date('Y-m-d H:i:s'),
                 ]);
             }
