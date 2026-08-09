@@ -79,6 +79,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('(:num)', 'WorkOrdersController::show/$1', ['as' => 'work_orders.show']);
         $routes->post('(:num)/issue', 'WorkOrdersController::issue/$1', ['as' => 'work_orders.issue']);
         $routes->post('(:num)/start', 'WorkOrdersController::start/$1', ['as' => 'work_orders.start']);
+        $routes->post('(:num)/mission-log', 'WorkOrdersController::addMissionLog/$1', ['as' => 'work_orders.mission_log.store']);
     });
 
     $routes->group('equipment', static function (RouteCollection $routes): void {
