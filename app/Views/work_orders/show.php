@@ -6,6 +6,8 @@ $isIssued = $order['status'] === 'issued';
 $isInProgress = in_array($order['status'], ['in_progress','working'], true);
 $statusLabels = ['prepared' => 'Preparada', 'issued' => 'Emitida', 'in_progress' => 'En ejecución', 'working' => 'En ejecución', 'finished' => 'Finalizada', 'closed' => 'Cerrada'];
 $statusClasses = ['prepared' => 'bg-amber-100 text-amber-800', 'issued' => 'bg-cyan-100 text-cyan-800', 'in_progress' => 'bg-violet-100 text-violet-800', 'working' => 'bg-violet-100 text-violet-800', 'finished' => 'bg-emerald-100 text-emerald-800', 'closed' => 'bg-slate-200 text-slate-700'];
+$oldEventType = old('event_type') ?: 'progress';
+$oldOccurredAt = old('occurred_at') ?: date('Y-m-d\TH:i');
 ?>
 <?php if(session('success')): ?><div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800"><?= esc(session('success')) ?></div><?php endif ?>
 <?php if(session('error')): ?><div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800"><?= esc(session('error')) ?></div><?php endif ?>
@@ -67,10 +69,24 @@ $statusClasses = ['prepared' => 'bg-amber-100 text-amber-800', 'issued' => 'bg-c
 </section>
 
 <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-    <div><p class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-600">Mission Log</p><h3 class="mt-2 text-xl font-bold text-slate-950">Bitácora de la misión</h3><p class="mt-2 text-sm text-slate-500">Registro cronológico de eventos operativos asociados a esta Orden de Trabajo.</p></div>
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><p class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-600">Mission Log</p><h3 class="mt-2 text-xl font-bold text-slate-950">Bitácora de la misión</h3><p class="mt-2 text-sm text-slate-500">Registro cronológico de eventos operativos asociados a esta Orden de Trabajo.</p></div><?php if($isInProgress): ?><span class="rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-800">Registro activo</span><?php endif ?></div>
+
+    <?php if($isInProgress): ?>
+    <form method="post" action="<?= route_to('work_orders.mission_log.store',$order['id']) ?>" class="mt-6 rounded-2xl border border-cyan-200 bg-cyan-50/40 p-5">
+        <?= csrf_field() ?>
+        <div class="grid gap-4 md:grid-cols-2">
+            <label><span class="mb-2 block text-sm font-semibold text-slate-700">Tipo de avance *</span><select name="event_type" required class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3"><?php foreach($missionLogEventTypes as $code => $definition): ?><option value="<?= esc($code) ?>" <?= $oldEventType === $code ? 'selected' : '' ?>><?= esc($definition['label']) ?></option><?php endforeach ?></select></label>
+            <label><span class="mb-2 block text-sm font-semibold text-slate-700">Fecha y hora *</span><input type="datetime-local" name="occurred_at" required value="<?= esc($oldOccurredAt) ?>" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3"></label>
+            <label class="md:col-span-2"><span class="mb-2 block text-sm font-semibold text-slate-700">Descripción *</span><textarea name="description" rows="4" required class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3" placeholder="Describe de forma concreta qué ocurrió, qué avance se logró o qué condición debe quedar registrada."><?= esc(old('description') ?? '') ?></textarea></label>
+        </div>
+        <label class="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4"><input type="checkbox" name="publish_to_case" value="1" class="mt-1" <?= old('publish_to_case') ? 'checked' : '' ?>><span><span class="block text-sm font-bold text-slate-900">Agregar también al Timeline del Expediente</span><span class="mt-1 block text-xs leading-5 text-slate-500">Úsalo para hechos relevantes que deban ser visibles desde el Service Case. Las notas rutinarias pueden permanecer únicamente en el Mission Log.</span></span></label>
+        <div class="mt-5 flex justify-end"><button class="rounded-xl bg-cyan-400 px-5 py-3 font-bold text-slate-950 hover:bg-cyan-300">Registrar avance</button></div>
+    </form>
+    <?php endif ?>
+
     <div class="mt-6 space-y-5">
-        <?php foreach($missionLogs as $log): ?>
-            <article class="relative border-l-2 border-cyan-200 pl-5"><span class="absolute -left-[7px] top-1 h-3 w-3 rounded-full bg-cyan-500"></span><div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"><p class="font-bold text-slate-900"><?= esc($log['title']) ?></p><time class="text-xs text-slate-400"><?= esc(date('d/m/Y H:i',strtotime($log['occurred_at']))) ?></time></div><?php if(!empty($log['description'])): ?><p class="mt-2 text-sm leading-6 text-slate-600"><?= esc($log['description']) ?></p><?php endif ?><div class="mt-2 flex gap-2"><span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase text-slate-500"><?= esc($log['category']) ?></span><span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase text-slate-500"><?= esc($log['visibility']) ?></span></div></article>
+        <?php foreach($missionLogs as $log): $meta = !empty($log['metadata_json']) ? json_decode((string)$log['metadata_json'], true) : []; ?>
+            <article class="relative border-l-2 border-cyan-200 pl-5"><span class="absolute -left-[7px] top-1 h-3 w-3 rounded-full bg-cyan-500"></span><div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"><p class="font-bold text-slate-900"><?= esc($log['title']) ?></p><time class="text-xs text-slate-400"><?= esc(date('d/m/Y H:i',strtotime($log['occurred_at']))) ?></time></div><?php if(!empty($log['description'])): ?><p class="mt-2 text-sm leading-6 text-slate-600"><?= esc($log['description']) ?></p><?php endif ?><div class="mt-2 flex flex-wrap gap-2"><span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase text-slate-500"><?= esc($log['category']) ?></span><span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase text-slate-500"><?= esc($log['log_type']) ?></span><?php if(!empty($meta['published_to_case'])): ?><span class="rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-semibold uppercase text-violet-700">En expediente</span><?php endif ?></div></article>
         <?php endforeach ?>
         <?php if($missionLogs===[]): ?><div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">La bitácora iniciará automáticamente cuando comience la ejecución del servicio.</div><?php endif ?>
     </div>
@@ -91,7 +107,8 @@ $statusClasses = ['prepared' => 'bg-amber-100 text-amber-800', 'issued' => 'bg-c
         <button id="open-start-modal" type="button" class="mt-5 w-full rounded-xl bg-cyan-400 px-5 py-3 font-bold text-slate-950 hover:bg-cyan-300">▶ Iniciar servicio</button>
     <?php elseif($isInProgress): ?>
         <div class="mt-4 rounded-xl border border-violet-900 bg-violet-950/40 p-4"><p class="text-xs uppercase text-violet-300">En ejecución desde</p><p class="mt-2 font-bold text-violet-100"><?= esc($order['started_at']?date('d/m/Y H:i',strtotime($order['started_at'])):'—') ?></p></div>
-        <p class="mt-4 text-sm leading-6 text-slate-300">La siguiente iteración habilitará registros manuales del Mission Log, incidencias y evidencias.</p>
+        <p class="mt-4 text-sm leading-6 text-slate-300">Registra los hechos relevantes en el Mission Log. Publica al Expediente solo los eventos que aporten trazabilidad ejecutiva.</p>
+        <a href="#mission-log-entry" onclick="document.querySelector('form[action*=\'mission-log\']')?.scrollIntoView({behavior:'smooth',block:'center'})" class="mt-5 block w-full rounded-xl bg-cyan-400 px-5 py-3 text-center font-bold text-slate-950">Registrar avance →</a>
     <?php else: ?><p class="mt-4 text-sm leading-6 text-slate-300">La Orden de Trabajo avanza mediante estados controlados.</p><?php endif ?>
 </section>
 <section class="rounded-2xl border border-slate-200 bg-white p-6"><p class="text-xs uppercase tracking-wide text-slate-500">Trazabilidad</p><div class="mt-4 space-y-3 text-sm"><p><span class="text-slate-500">Expediente:</span> <strong><?= esc($order['service_case_code']) ?></strong></p><p><span class="text-slate-500">Coordinación:</span> <strong><?= esc($order['coordination_code']) ?></strong></p><p><span class="text-slate-500">Creada:</span> <strong><?= esc($order['entry_date']?date('d/m/Y H:i',strtotime($order['entry_date'])):'—') ?></strong></p><?php if($order['issued_at']): ?><p><span class="text-slate-500">Emitida:</span> <strong><?= esc(date('d/m/Y H:i',strtotime($order['issued_at']))) ?></strong></p><?php endif ?><?php if($order['started_at']): ?><p><span class="text-slate-500">Iniciada:</span> <strong><?= esc(date('d/m/Y H:i',strtotime($order['started_at']))) ?></strong></p><?php endif ?></div></section>
