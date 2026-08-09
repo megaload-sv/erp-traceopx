@@ -49,3 +49,5 @@ $completionReadiness = $isInProgress ? (new WorkOrderCompletionService())->readi
         <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">La finalización operativa estará disponible cuando la Orden de Trabajo se encuentre en ejecución.</div>
     <?php endif ?>
 </section>
+
+<?= $this->include('work_orders/_acceptance') ?>
