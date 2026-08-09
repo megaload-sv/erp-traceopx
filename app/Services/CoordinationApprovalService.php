@@ -20,29 +20,6 @@ class CoordinationApprovalService
         }
 
         $resourceWorkspace = (new ResourceAllocationService())->workspace($planId);
-        $missing = [];
-
-        if (empty($plan['scheduled_start_at'])) {
-            $missing[] = 'Fecha programada';
-        }
-        if (empty($plan['estimated_end_at'])) {
-            $missing[] = 'Fin estimado';
-        }
-        if (! empty($plan['scheduled_start_at']) && ! empty($plan['estimated_end_at'])
-            && strtotime((string) $plan['estimated_end_at']) <= strtotime((string) $plan['scheduled_start_at'])) {
-            $missing[] = 'Rango de programación válido';
-        }
-        if (trim((string) ($plan['location'] ?? '')) === '') {
-            $missing[] = 'Lugar de ejecución';
-        }
-        if (trim((string) ($plan['scope_notes'] ?? '')) === '') {
-            $missing[] = 'Alcance operativo';
-        }
-
-        foreach ($resourceWorkspace['missing_required'] as $requirement) {
-            $missing[] = $requirement;
-        }
-
         $equipment = $db->table('coordination_plan_equipment cpe')
             ->select('cpe.id, cpe.equipment_id, cpe.assignment_status, equipment.code, equipment.name, equipment.operational_status, equipment.maintenance_status')
             ->join('equipment', 'equipment.id = cpe.equipment_id')
@@ -50,23 +27,62 @@ class CoordinationApprovalService
             ->where('cpe.delete_date', null)
             ->get()->getResultArray();
 
+        $scheduled = ! empty($plan['scheduled_start_at']);
+        $estimated = ! empty($plan['estimated_end_at']);
+        $validRange = $scheduled && $estimated
+            && strtotime((string) $plan['estimated_end_at']) > strtotime((string) $plan['scheduled_start_at']);
+        $hasLocation = trim((string) ($plan['location'] ?? '')) !== '';
+        $hasScope = trim((string) ($plan['scope_notes'] ?? '')) !== '';
+        $hasEquipment = $equipment !== [];
+        $resourcesReady = (bool) $resourceWorkspace['ready_for_approval'];
+        $approved = $plan['status'] === 'approved';
+
+        $equipmentOperational = $hasEquipment;
+        $maintenanceCompatible = $hasEquipment;
         foreach ($equipment as $item) {
-            if ($item['operational_status'] !== 'available') {
-                $missing[] = $item['code'] . ' · maquinaria no disponible';
+            $validOperationalStates = $approved ? ['reserved', 'assigned', 'in_operation'] : ['available'];
+            if (! in_array($item['operational_status'], $validOperationalStates, true)) {
+                $equipmentOperational = false;
             }
             if (! in_array($item['maintenance_status'], ['ok', 'preventive_due'], true)) {
-                $missing[] = $item['code'] . ' · mantenimiento no compatible';
+                $maintenanceCompatible = false;
             }
         }
 
+        $checks = [
+            ['key' => 'schedule', 'label' => 'Programación definida', 'complete' => $scheduled && $estimated && $validRange],
+            ['key' => 'location', 'label' => 'Lugar de ejecución', 'complete' => $hasLocation],
+            ['key' => 'scope', 'label' => 'Alcance operativo', 'complete' => $hasScope],
+            ['key' => 'equipment', 'label' => 'Maquinaria prevista', 'complete' => $hasEquipment],
+            ['key' => 'equipment_availability', 'label' => $approved ? 'Maquinaria reservada' : 'Maquinaria disponible', 'complete' => $equipmentOperational],
+            ['key' => 'maintenance', 'label' => 'Mantenimiento compatible', 'complete' => $maintenanceCompatible],
+            ['key' => 'resources', 'label' => 'Personal obligatorio cubierto', 'complete' => $resourcesReady],
+            ['key' => 'leader', 'label' => 'Responsable de misión', 'complete' => ! empty($resourceWorkspace['mission_leader'])],
+        ];
+
+        $missing = [];
+        foreach ($checks as $check) {
+            if (! $check['complete']) {
+                $missing[] = $check['label'];
+            }
+        }
+        foreach ($resourceWorkspace['missing_required'] as $requirement) {
+            $missing[] = $requirement;
+        }
         $missing = array_values(array_unique($missing));
+
+        $completedChecks = count(array_filter($checks, static fn(array $check): bool => $check['complete']));
+        $completionPercent = $checks === [] ? 0 : (int) round(($completedChecks / count($checks)) * 100);
 
         return [
             'plan' => $plan,
             'equipment' => $equipment,
             'resource_workspace' => $resourceWorkspace,
+            'checks' => $checks,
             'missing' => $missing,
             'ready' => $missing === [] && $plan['status'] === 'draft',
+            'approved' => $approved,
+            'completion_percent' => $completionPercent,
         ];
     }
 
@@ -84,7 +100,6 @@ class CoordinationApprovalService
 
         $db->transBegin();
         try {
-            // Bloqueo y revalidación de maquinaria para impedir aprobaciones concurrentes.
             foreach ($check['equipment'] as $item) {
                 $locked = $db->query(
                     'SELECT id, code, name, operational_status, maintenance_status FROM equipment WHERE id = ? FOR UPDATE',
