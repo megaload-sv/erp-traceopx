@@ -65,6 +65,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('service-case/(:num)/create', 'CoordinationPlansController::create/$1', ['as' => 'coordination.create']);
         $routes->post('service-case/(:num)', 'CoordinationPlansController::store/$1', ['as' => 'coordination.store']);
         $routes->get('(:num)', 'CoordinationPlansController::show/$1', ['as' => 'coordination.show']);
+        $routes->post('(:num)/equipment', 'CoordinationPlansController::addEquipment/$1', ['as' => 'coordination.equipment.add']);
         $routes->post('(:num)/resources/role', 'CoordinationResourcesController::reserveRole/$1', ['as' => 'coordination.resources.role']);
         $routes->post('(:num)/resources/mission-leader', 'CoordinationResourcesController::reserveMissionLeader/$1', ['as' => 'coordination.resources.mission_leader']);
         $routes->post('(:num)/resources/(:num)/release', 'CoordinationResourcesController::release/$1/$2', ['as' => 'coordination.resources.release']);
