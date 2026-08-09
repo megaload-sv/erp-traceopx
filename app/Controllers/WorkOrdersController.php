@@ -6,6 +6,7 @@ use App\Models\WorkOrderModel;
 use App\Services\MissionLogService;
 use App\Services\WorkOrderChecklistService;
 use App\Services\WorkOrderEvidenceService;
+use App\Services\WorkOrderIncidentService;
 use App\Services\WorkOrderService;
 use CodeIgniter\HTTP\RedirectResponse;
 use RuntimeException;
@@ -103,6 +104,59 @@ class WorkOrdersController extends BaseController
         }
     }
 
+    public function addIncident(int $id): RedirectResponse
+    {
+        try {
+            (new WorkOrderIncidentService())->create($id, [
+                'incident_type' => $this->request->getPost('incident_type'),
+                'severity' => $this->request->getPost('severity'),
+                'title' => $this->request->getPost('incident_title'),
+                'description' => $this->request->getPost('incident_description'),
+                'occurred_at' => $this->request->getPost('incident_occurred_at'),
+                'equipment_id' => $this->request->getPost('incident_equipment_id'),
+                'work_order_team_id' => $this->request->getPost('incident_team_id'),
+            ]);
+
+            return redirect()->to(route_to('work_orders.show', $id) . '#operational-incidents')
+                ->with('success', 'Incidencia operativa registrada y publicada en el Expediente.');
+        } catch (Throwable $e) {
+            log_message('error', 'Error registrando incidencia en OT {id}: {message}', ['id' => $id, 'message' => $e->getMessage()]);
+            return redirect()->to(route_to('work_orders.show', $id) . '#operational-incidents')
+                ->withInput()->with('error', $e->getMessage());
+        }
+    }
+
+    public function proposePersonnelSubstitution(int $id, int $incidentId): RedirectResponse
+    {
+        try {
+            (new WorkOrderIncidentService())->proposePersonnelChange(
+                $id,
+                $incidentId,
+                (int) $this->request->getPost('incoming_employee_id'),
+                (string) $this->request->getPost('substitution_reason')
+            );
+            return redirect()->to(route_to('work_orders.show', $id) . '#operational-incidents')
+                ->with('success', 'Sustitución propuesta. Debe ser aprobada antes de modificar la cuadrilla.');
+        } catch (Throwable $e) {
+            log_message('error', 'Error proponiendo sustitución en OT {id}: {message}', ['id' => $id, 'message' => $e->getMessage()]);
+            return redirect()->to(route_to('work_orders.show', $id) . '#operational-incidents')
+                ->with('error', $e->getMessage());
+        }
+    }
+
+    public function approvePersonnelSubstitution(int $id, int $changeId): RedirectResponse
+    {
+        try {
+            (new WorkOrderIncidentService())->approvePersonnelChange($id, $changeId);
+            return redirect()->to(route_to('work_orders.show', $id) . '#operational-incidents')
+                ->with('success', 'Sustitución aprobada y ejecutada. La cuadrilla y el Expediente fueron actualizados.');
+        } catch (Throwable $e) {
+            log_message('error', 'Error aprobando sustitución en OT {id}: {message}', ['id' => $id, 'message' => $e->getMessage()]);
+            return redirect()->to(route_to('work_orders.show', $id) . '#operational-incidents')
+                ->with('error', $e->getMessage());
+        }
+    }
+
     public function addEvidence(int $id): RedirectResponse
     {
         try {
@@ -161,6 +215,30 @@ class WorkOrdersController extends BaseController
             ? (new WorkOrderChecklistService())->ensureForWorkOrder($id)
             : null;
 
+        $incidentService = new WorkOrderIncidentService();
+        $incidents = $db->tableExists('work_order_incidents')
+            ? $db->table('work_order_incidents')->where('work_order_id', $id)->orderBy('occurred_at', 'DESC')->orderBy('id', 'DESC')->get()->getResultArray()
+            : [];
+        $resourceChanges = $db->tableExists('work_order_resource_changes')
+            ? $db->table('work_order_resource_changes rc')
+                ->select('rc.*, outgoing.name AS outgoing_name, incoming.name AS incoming_name')
+                ->join('employees outgoing', 'outgoing.id = rc.outgoing_employee_id', 'left')
+                ->join('employees incoming', 'incoming.id = rc.incoming_employee_id', 'left')
+                ->where('rc.work_order_id', $id)
+                ->orderBy('rc.id', 'DESC')->get()->getResultArray()
+            : [];
+        $changesByIncident = [];
+        foreach ($resourceChanges as $change) {
+            $changesByIncident[(int) $change['incident_id']][] = $change;
+        }
+        foreach ($incidents as &$incident) {
+            $incident['changes'] = $changesByIncident[(int) $incident['id']] ?? [];
+            $incident['replacement_candidates'] = ($incident['status'] === 'open' && ! empty($incident['work_order_team_id']))
+                ? $incidentService->candidatesForPersonnelChange($id, (int) $incident['id'])
+                : [];
+        }
+        unset($incident);
+
         return view('work_orders/show', [
             'title' => 'Orden de Trabajo ' . $order['code'],
             'order' => $order,
@@ -170,6 +248,9 @@ class WorkOrdersController extends BaseController
             'missionLogEventTypes' => (new MissionLogService())->eventTypes(),
             'evidence' => $evidence,
             'checklist' => $checklist,
+            'incidents' => $incidents,
+            'incidentTypes' => $incidentService->types(),
+            'incidentSeverities' => $incidentService->severities(),
         ]);
     }
 
