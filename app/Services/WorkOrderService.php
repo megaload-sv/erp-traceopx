@@ -150,6 +150,92 @@ class WorkOrderService
         }
     }
 
+    public function issue(int $workOrderId, ?string $notes = null): void
+    {
+        $db = db_connect();
+        $order = $db->table('work_orders')
+            ->where('id', $workOrderId)
+            ->where('delete_date', null)
+            ->get()->getRowArray();
+
+        if ($order === null) {
+            throw new RuntimeException('Orden de Trabajo no encontrada.');
+        }
+        if ($order['status'] !== 'prepared') {
+            throw new RuntimeException('Solo una Orden de Trabajo preparada puede ser emitida.');
+        }
+        if (empty($order['mission_leader_employee_id'])) {
+            throw new RuntimeException('La Orden de Trabajo no tiene Responsable de Misión.');
+        }
+
+        $leader = $db->table('employees')
+            ->where('id', (int) $order['mission_leader_employee_id'])
+            ->where('status', 1)
+            ->where('delete_date', null)
+            ->get()->getRowArray();
+        if ($leader === null) {
+            throw new RuntimeException('El Responsable de Misión ya no está disponible en el catálogo de personal.');
+        }
+
+        $equipmentCount = $db->table('work_order_equipment')
+            ->where('work_order_id', $workOrderId)
+            ->countAllResults();
+        $teamCount = $db->table('work_order_team')
+            ->where('work_order_id', $workOrderId)
+            ->countAllResults();
+        if ($equipmentCount === 0 || $teamCount === 0) {
+            throw new RuntimeException('La Orden de Trabajo no tiene completos sus recursos operativos.');
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $db->transBegin();
+        try {
+            $db->table('work_orders')->where('id', $workOrderId)->update([
+                'status' => 'issued',
+                'issued_at' => $now,
+                'issued_by_user_id' => session('auth_user_id') ?: null,
+                'issued_to_employee_id' => (int) $leader['id'],
+                'issuance_notes' => trim((string) $notes) !== '' ? trim((string) $notes) : null,
+                'modify_user' => $this->actor(),
+                'modify_date' => $now,
+            ]);
+
+            $db->table('service_cases')->where('id', (int) $order['service_case_id'])->update([
+                'current_stage' => 'work_order',
+                'operational_status' => 'scheduled',
+                'next_action_code' => 'work_order.start',
+                'next_action_label' => 'Iniciar ejecución de Orden de Trabajo',
+                'modify_user' => $this->actor(),
+                'modify_date' => $now,
+            ]);
+
+            $db->table('service_case_events')->insert([
+                'service_case_id' => (int) $order['service_case_id'],
+                'event_code' => 'work_order.issued',
+                'title' => 'Orden de Trabajo emitida',
+                'description' => 'La Orden de Trabajo ' . $order['code'] . ' fue emitida y entregada a ' . $leader['name'] . '.',
+                'entity_type' => 'work_order',
+                'entity_id' => $workOrderId,
+                'occurred_at' => $now,
+                'entry_user' => $this->actor(),
+                'entry_date' => $now,
+            ]);
+
+            (new ActivityService())->record(
+                'work_order',
+                $workOrderId,
+                'work_order.issued',
+                'Orden de Trabajo emitida',
+                'Entregada a ' . $leader['name']
+            );
+
+            $db->transCommit();
+        } catch (Throwable $e) {
+            $db->transRollback();
+            throw $e;
+        }
+    }
+
     private function nextCode(): string
     {
         $year = date('Y');
