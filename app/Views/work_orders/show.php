@@ -68,11 +68,13 @@ $oldOccurredAt = old('occurred_at') ?: date('Y-m-d\TH:i');
     <div class="mt-5 grid gap-3 md:grid-cols-2"><?php foreach($team as $member): ?><article class="rounded-xl border <?= $member['allocation_type']==='mission_leader'?'border-violet-200 bg-violet-50':'border-slate-200 bg-slate-50' ?> p-4"><p class="font-bold"><?= esc($member['employee_name_snapshot']) ?></p><p class="mt-1 text-sm text-slate-600"><?= esc($member['role_name_snapshot']??'Recurso operativo') ?></p><p class="mt-1 text-xs text-slate-500"><?= esc($member['employee_code_snapshot']) ?> · <?= esc(ucfirst(str_replace('_',' ',$member['assignment_status']))) ?></p></article><?php endforeach ?></div>
 </section>
 
+<?= $this->include('work_orders/_evidence') ?>
+
 <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><p class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-600">Mission Log</p><h3 class="mt-2 text-xl font-bold text-slate-950">Bitácora de la misión</h3><p class="mt-2 text-sm text-slate-500">Registro cronológico de eventos operativos asociados a esta Orden de Trabajo.</p></div><?php if($isInProgress): ?><span class="rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-800">Registro activo</span><?php endif ?></div>
 
     <?php if($isInProgress): ?>
-    <form method="post" action="<?= route_to('work_orders.mission_log.store',$order['id']) ?>" class="mt-6 rounded-2xl border border-cyan-200 bg-cyan-50/40 p-5">
+    <form id="mission-log-entry" method="post" action="<?= route_to('work_orders.mission_log.store',$order['id']) ?>" class="mt-6 rounded-2xl border border-cyan-200 bg-cyan-50/40 p-5">
         <?= csrf_field() ?>
         <div class="grid gap-4 md:grid-cols-2">
             <label><span class="mb-2 block text-sm font-semibold text-slate-700">Tipo de avance *</span><select name="event_type" required class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3"><?php foreach($missionLogEventTypes as $code => $definition): ?><option value="<?= esc($code) ?>" <?= $oldEventType === $code ? 'selected' : '' ?>><?= esc($definition['label']) ?></option><?php endforeach ?></select></label>
@@ -107,11 +109,11 @@ $oldOccurredAt = old('occurred_at') ?: date('Y-m-d\TH:i');
         <button id="open-start-modal" type="button" class="mt-5 w-full rounded-xl bg-cyan-400 px-5 py-3 font-bold text-slate-950 hover:bg-cyan-300">▶ Iniciar servicio</button>
     <?php elseif($isInProgress): ?>
         <div class="mt-4 rounded-xl border border-violet-900 bg-violet-950/40 p-4"><p class="text-xs uppercase text-violet-300">En ejecución desde</p><p class="mt-2 font-bold text-violet-100"><?= esc($order['started_at']?date('d/m/Y H:i',strtotime($order['started_at'])):'—') ?></p></div>
-        <p class="mt-4 text-sm leading-6 text-slate-300">Registra los hechos relevantes en el Mission Log. Publica al Expediente solo los eventos que aporten trazabilidad ejecutiva.</p>
-        <a href="#mission-log-entry" onclick="document.querySelector('form[action*=\'mission-log\']')?.scrollIntoView({behavior:'smooth',block:'center'})" class="mt-5 block w-full rounded-xl bg-cyan-400 px-5 py-3 text-center font-bold text-slate-950">Registrar avance →</a>
+        <p class="mt-4 text-sm leading-6 text-slate-300">Registra avances y evidencias mientras la misión se encuentra activa. Los archivos quedan protegidos y ligados al Expediente.</p>
+        <a href="#mission-log-entry" class="mt-5 block w-full rounded-xl bg-cyan-400 px-5 py-3 text-center font-bold text-slate-950">Registrar avance →</a>
     <?php else: ?><p class="mt-4 text-sm leading-6 text-slate-300">La Orden de Trabajo avanza mediante estados controlados.</p><?php endif ?>
 </section>
-<section class="rounded-2xl border border-slate-200 bg-white p-6"><p class="text-xs uppercase tracking-wide text-slate-500">Trazabilidad</p><div class="mt-4 space-y-3 text-sm"><p><span class="text-slate-500">Expediente:</span> <strong><?= esc($order['service_case_code']) ?></strong></p><p><span class="text-slate-500">Coordinación:</span> <strong><?= esc($order['coordination_code']) ?></strong></p><p><span class="text-slate-500">Creada:</span> <strong><?= esc($order['entry_date']?date('d/m/Y H:i',strtotime($order['entry_date'])):'—') ?></strong></p><?php if($order['issued_at']): ?><p><span class="text-slate-500">Emitida:</span> <strong><?= esc(date('d/m/Y H:i',strtotime($order['issued_at']))) ?></strong></p><?php endif ?><?php if($order['started_at']): ?><p><span class="text-slate-500">Iniciada:</span> <strong><?= esc(date('d/m/Y H:i',strtotime($order['started_at']))) ?></strong></p><?php endif ?></div></section>
+<section class="rounded-2xl border border-slate-200 bg-white p-6"><p class="text-xs uppercase tracking-wide text-slate-500">Trazabilidad</p><div class="mt-4 space-y-3 text-sm"><p><span class="text-slate-500">Expediente:</span> <strong><?= esc($order['service_case_code']) ?></strong></p><p><span class="text-slate-500">Coordinación:</span> <strong><?= esc($order['coordination_code']) ?></strong></p><p><span class="text-slate-500">Creada:</span> <strong><?= esc($order['entry_date']?date('d/m/Y H:i',strtotime($order['entry_date'])):'—') ?></strong></p><?php if($order['issued_at']): ?><p><span class="text-slate-500">Emitida:</span> <strong><?= esc(date('d/m/Y H:i',strtotime($order['issued_at']))) ?></strong></p><?php endif ?><?php if($order['started_at']): ?><p><span class="text-slate-500">Iniciada:</span> <strong><?= esc(date('d/m/Y H:i',strtotime($order['started_at']))) ?></strong></p><?php endif ?><p><span class="text-slate-500">Evidencias:</span> <strong><?= count($evidence ?? []) ?></strong></p></div></section>
 </aside>
 </div>
 
