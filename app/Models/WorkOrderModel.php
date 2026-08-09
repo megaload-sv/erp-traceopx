@@ -10,8 +10,8 @@ class WorkOrderModel extends BaseModel
         'uuid','code','service_case_id','coordination_plan_id','customer_id','mission_leader_employee_id',
         'subject','scheduled_start_at','estimated_end_at','location','location_reference','priority',
         'scope_snapshot','coordination_notes_snapshot','status','issued_at','issued_by_user_id',
-        'issued_to_employee_id','issuance_notes','started_at','finished_at','closed_at',
-        'created_by_user_id','entry_user','modify_user','delete_user',
+        'issued_to_employee_id','issuance_notes','started_at','started_by_user_id','start_notes',
+        'finished_at','closed_at','created_by_user_id','entry_user','modify_user','delete_user',
     ];
 
     public function detail(int $id): ?array
