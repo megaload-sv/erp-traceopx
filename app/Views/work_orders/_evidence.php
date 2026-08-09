@@ -1,3 +1,6 @@
+<?php
+$isInProgress = isset($order['status']) && in_array($order['status'], ['in_progress', 'working'], true);
+?>
 <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
