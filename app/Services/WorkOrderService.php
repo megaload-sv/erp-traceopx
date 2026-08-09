@@ -238,6 +238,180 @@ class WorkOrderService
         }
     }
 
+    public function start(int $workOrderId, ?string $notes = null): void
+    {
+        $db = db_connect();
+        $now = date('Y-m-d H:i:s');
+        $db->transBegin();
+
+        try {
+            $order = $db->query(
+                'SELECT * FROM work_orders WHERE id = ? AND delete_date IS NULL FOR UPDATE',
+                [$workOrderId]
+            )->getRowArray();
+
+            if ($order === null) {
+                throw new RuntimeException('Orden de Trabajo no encontrada.');
+            }
+            if ($order['status'] !== 'issued') {
+                throw new RuntimeException('Solo una Orden de Trabajo emitida puede iniciar ejecución.');
+            }
+            if (empty($order['mission_leader_employee_id'])) {
+                throw new RuntimeException('La Orden de Trabajo no tiene Responsable de Misión.');
+            }
+
+            $equipmentRows = $db->table('work_order_equipment')
+                ->where('work_order_id', $workOrderId)
+                ->get()->getResultArray();
+            $teamRows = $db->table('work_order_team')
+                ->where('work_order_id', $workOrderId)
+                ->get()->getResultArray();
+
+            if ($equipmentRows === [] || $teamRows === []) {
+                throw new RuntimeException('La Orden de Trabajo no tiene completos sus recursos operativos.');
+            }
+
+            foreach ($equipmentRows as $equipmentRow) {
+                $equipment = $db->query(
+                    'SELECT id, code, name, operational_status, maintenance_status FROM equipment WHERE id = ? FOR UPDATE',
+                    [(int) $equipmentRow['equipment_id']]
+                )->getRowArray();
+
+                if ($equipment === null) {
+                    throw new RuntimeException('Uno de los equipos asignados ya no existe.');
+                }
+                if (! in_array($equipment['operational_status'], ['reserved', 'assigned'], true)) {
+                    throw new RuntimeException($equipment['code'] . ' · ' . $equipment['name'] . ' ya no está disponible para iniciar esta misión.');
+                }
+                if (! in_array($equipment['maintenance_status'], ['ok', 'preventive_due'], true)) {
+                    throw new RuntimeException($equipment['code'] . ' · ' . $equipment['name'] . ' no puede iniciar por su estado de mantenimiento.');
+                }
+
+                $db->table('equipment')->where('id', (int) $equipment['id'])->update([
+                    'operational_status' => 'in_operation',
+                    'modify_user' => $this->actor(),
+                    'modify_date' => $now,
+                ]);
+                $db->table('work_order_equipment')->where('id', (int) $equipmentRow['id'])->update([
+                    'assignment_status' => 'in_operation',
+                ]);
+                $db->table('coordination_plan_equipment')
+                    ->where('coordination_plan_id', (int) $order['coordination_plan_id'])
+                    ->where('equipment_id', (int) $equipment['id'])
+                    ->where('delete_date', null)
+                    ->update([
+                        'assignment_status' => 'in_operation',
+                        'modify_user' => $this->actor(),
+                        'modify_date' => $now,
+                    ]);
+            }
+
+            $processedEmployees = [];
+            foreach ($teamRows as $teamRow) {
+                $employeeId = (int) $teamRow['employee_id'];
+                if (! in_array($employeeId, $processedEmployees, true)) {
+                    $employee = $db->query(
+                        'SELECT id, employee_code, name, availability_status FROM employees WHERE id = ? AND status = 1 AND delete_date IS NULL FOR UPDATE',
+                        [$employeeId]
+                    )->getRowArray();
+                    if ($employee === null) {
+                        throw new RuntimeException('Uno de los colaboradores asignados ya no está disponible en el catálogo.');
+                    }
+                    if (! in_array($employee['availability_status'], ['assigned', 'reserved', 'working'], true)) {
+                        throw new RuntimeException($employee['employee_code'] . ' · ' . $employee['name'] . ' no puede iniciar esta misión por su estado actual.');
+                    }
+                    $db->table('employees')->where('id', $employeeId)->update([
+                        'availability_status' => 'working',
+                        'modify_user' => $this->actor(),
+                        'modify_date' => $now,
+                    ]);
+                    $processedEmployees[] = $employeeId;
+                }
+
+                $db->table('work_order_team')->where('id', (int) $teamRow['id'])->update([
+                    'assignment_status' => 'working',
+                ]);
+            }
+
+            $db->table('coordination_resource_allocations')
+                ->where('coordination_plan_id', (int) $order['coordination_plan_id'])
+                ->where('status', 1)
+                ->where('delete_date', null)
+                ->where('allocation_status', 'assigned')
+                ->update([
+                    'allocation_status' => 'working',
+                    'modify_user' => $this->actor(),
+                    'modify_date' => $now,
+                ]);
+
+            $cleanNotes = trim((string) $notes);
+            $db->table('work_orders')->where('id', $workOrderId)->update([
+                'status' => 'in_progress',
+                'started_at' => $now,
+                'started_by_user_id' => session('auth_user_id') ?: null,
+                'start_notes' => $cleanNotes !== '' ? $cleanNotes : null,
+                'modify_user' => $this->actor(),
+                'modify_date' => $now,
+            ]);
+
+            $db->table('mission_logs')->insert([
+                'work_order_id' => $workOrderId,
+                'service_case_id' => (int) $order['service_case_id'],
+                'log_type' => 'system',
+                'category' => 'execution',
+                'event_code' => 'work_order.started',
+                'title' => 'Servicio iniciado',
+                'description' => $cleanNotes !== '' ? $cleanNotes : 'El Responsable de Misión confirmó el inicio de la ejecución operativa.',
+                'visibility' => 'internal',
+                'occurred_at' => $now,
+                'actor_user_id' => session('auth_user_id') ?: null,
+                'actor_employee_id' => (int) $order['mission_leader_employee_id'],
+                'metadata_json' => json_encode([
+                    'equipment_count' => count($equipmentRows),
+                    'team_count' => count($teamRows),
+                    'coordination_plan_id' => (int) $order['coordination_plan_id'],
+                ], JSON_UNESCAPED_UNICODE),
+                'entry_user' => $this->actor(),
+                'entry_date' => $now,
+            ]);
+
+            $db->table('service_case_events')->insert([
+                'service_case_id' => (int) $order['service_case_id'],
+                'event_code' => 'work_order.started',
+                'title' => 'Ejecución de servicio iniciada',
+                'description' => 'La Orden de Trabajo ' . $order['code'] . ' inició ejecución. Personal y maquinaria pasaron a estado operativo.',
+                'entity_type' => 'work_order',
+                'entity_id' => $workOrderId,
+                'occurred_at' => $now,
+                'entry_user' => $this->actor(),
+                'entry_date' => $now,
+            ]);
+
+            $db->table('service_cases')->where('id', (int) $order['service_case_id'])->update([
+                'current_stage' => 'execution',
+                'operational_status' => 'in_progress',
+                'next_action_code' => 'work_order.log',
+                'next_action_label' => 'Registrar avance operativo',
+                'modify_user' => $this->actor(),
+                'modify_date' => $now,
+            ]);
+
+            (new ActivityService())->record(
+                'work_order',
+                $workOrderId,
+                'work_order.started',
+                'Ejecución iniciada',
+                'Personal y maquinaria pasaron a estado operativo.'
+            );
+
+            $db->transCommit();
+            (new ProcessEngineService())->evaluate((int) $order['service_case_id']);
+        } catch (Throwable $e) {
+            $db->transRollback();
+            throw $e;
+        }
+    }
+
     private function nextCode(): string
     {
         $year = date('Y');
