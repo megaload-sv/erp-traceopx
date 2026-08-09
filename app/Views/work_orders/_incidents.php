@@ -74,3 +74,5 @@ $severityClasses = [
         <?php if(($incidents ?? [])===[]): ?><div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">No se han registrado incidencias durante esta misión.</div><?php endif ?>
     </div>
 </section>
+
+<?= $this->include('work_orders/_completion') ?>
