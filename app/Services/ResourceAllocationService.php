@@ -14,6 +14,12 @@ class ResourceAllocationService
             throw new RuntimeException('Plan de coordinación no encontrado.');
         }
 
+        $equipmentCount = $db->table('coordination_plan_equipment')
+            ->where('coordination_plan_id', $coordinationPlanId)
+            ->where('status', 1)
+            ->where('delete_date', null)
+            ->countAllResults();
+
         $requirements = $db->table('coordination_plan_equipment cpe')
             ->select('equipment.id AS equipment_id, equipment.code AS equipment_code, equipment.name AS equipment_name, equipment_categories.code AS category_code, resource_roles.id AS role_id, resource_roles.code AS role_code, resource_roles.name AS role_name, err.requirement_type, err.min_quantity, err.max_quantity')
             ->join('equipment', 'equipment.id = cpe.equipment_id')
@@ -70,6 +76,9 @@ class ResourceAllocationService
         );
 
         $missingRequired = [];
+        if ($equipmentCount === 0) {
+            $missingRequired[] = 'Maquinaria o equipo previsto';
+        }
         foreach ($requirements as $requirement) {
             if ($requirement['requirement_type'] === 'required' && $requirement['assigned_count'] < (int) $requirement['min_quantity']) {
                 $missingRequired[] = $requirement['equipment_code'] . ' · ' . $requirement['role_name'];
@@ -79,14 +88,14 @@ class ResourceAllocationService
             $missingRequired[] = 'Responsable de misión';
         }
 
-        $requiredTotal = 1;
-        $requiredCovered = $missionLeader ? 1 : 0;
+        $requiredTotal = 2;
+        $requiredCovered = ($equipmentCount > 0 ? 1 : 0) + ($missionLeader ? 1 : 0);
         foreach ($requirements as $requirement) {
             if ($requirement['requirement_type'] !== 'required') continue;
             $requiredTotal += max(1, (int) $requirement['min_quantity']);
             $requiredCovered += min((int) $requirement['assigned_count'], max(1, (int) $requirement['min_quantity']));
         }
-        $completion = $requiredTotal > 0 ? (int) round(($requiredCovered / $requiredTotal) * 100) : 100;
+        $completion = (int) round(($requiredCovered / $requiredTotal) * 100);
 
         return [
             'requirements' => $requirements,
@@ -96,6 +105,7 @@ class ResourceAllocationService
             'missing_required' => $missingRequired,
             'ready_for_approval' => $missingRequired === [],
             'completion_percent' => $completion,
+            'equipment_count' => $equipmentCount,
         ];
     }
 
