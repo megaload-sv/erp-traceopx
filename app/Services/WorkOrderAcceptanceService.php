@@ -192,8 +192,7 @@ class WorkOrderAcceptanceService
 
             if ($isAccepted) {
                 $db->table('work_orders')->where('id', $workOrderId)->update([
-                    'status' => 'closed',
-                    'closed_at' => $acceptedAt,
+                    'status' => 'accepted',
                     'modify_user' => $this->actor(),
                     'modify_date' => $now,
                 ]);
