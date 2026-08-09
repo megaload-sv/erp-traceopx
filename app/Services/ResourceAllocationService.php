@@ -79,6 +79,15 @@ class ResourceAllocationService
             $missingRequired[] = 'Responsable de misión';
         }
 
+        $requiredTotal = 1;
+        $requiredCovered = $missionLeader ? 1 : 0;
+        foreach ($requirements as $requirement) {
+            if ($requirement['requirement_type'] !== 'required') continue;
+            $requiredTotal += max(1, (int) $requirement['min_quantity']);
+            $requiredCovered += min((int) $requirement['assigned_count'], max(1, (int) $requirement['min_quantity']));
+        }
+        $completion = $requiredTotal > 0 ? (int) round(($requiredCovered / $requiredTotal) * 100) : 100;
+
         return [
             'requirements' => $requirements,
             'allocations' => $allocations,
@@ -86,14 +95,14 @@ class ResourceAllocationService
             'mission_leader_candidates' => $missionLeaderCandidates,
             'missing_required' => $missingRequired,
             'ready_for_approval' => $missingRequired === [],
+            'completion_percent' => $completion,
         ];
     }
 
     public function reserveRole(int $planId, int $equipmentId, int $roleId, int $employeeId): void
     {
         $db = db_connect();
-        $plan = $db->table('coordination_plans')->where('id', $planId)->where('delete_date', null)->get()->getRowArray();
-        if ($plan === null) throw new RuntimeException('Plan de coordinación no encontrado.');
+        $plan = $this->findPlan($planId);
 
         $requirement = $db->table('equipment_role_requirements err')
             ->select('err.*, resource_roles.code AS role_code, equipment_categories.code AS category_code')
@@ -112,12 +121,16 @@ class ResourceAllocationService
         if ($planned === null) throw new RuntimeException('El equipo no pertenece a esta coordinación.');
 
         $skillCode = $this->skillCodeFor($requirement['role_code'], $requirement['category_code']);
+        if ($skillCode === null) {
+            throw new RuntimeException('No existe una habilidad configurada para este tipo de operador. Revise la categoría del equipo.');
+        }
         $this->assertEligible($planId, $employeeId, $skillCode, $plan['scheduled_start_at'], $plan['estimated_end_at']);
 
         $currentCount = $db->table('coordination_resource_allocations')
             ->where('coordination_plan_id', $planId)
             ->where('equipment_id', $equipmentId)
             ->where('resource_role_id', $roleId)
+            ->where('allocation_type', 'operational_role')
             ->where('status', 1)->where('delete_date', null)
             ->whereIn('allocation_status', ['reserved','assigned','working'])
             ->countAllResults();
@@ -131,10 +144,9 @@ class ResourceAllocationService
     public function reserveMissionLeader(int $planId, int $employeeId): void
     {
         $db = db_connect();
-        $plan = $db->table('coordination_plans')->where('id', $planId)->where('delete_date', null)->get()->getRowArray();
-        if ($plan === null) throw new RuntimeException('Plan de coordinación no encontrado.');
-
+        $plan = $this->findPlan($planId);
         $this->assertEligible($planId, $employeeId, 'MISSION_LEADER', $plan['scheduled_start_at'], $plan['estimated_end_at']);
+
         $existing = $db->table('coordination_resource_allocations')
             ->where('coordination_plan_id', $planId)->where('allocation_type', 'mission_leader')
             ->where('status', 1)->where('delete_date', null)
@@ -155,12 +167,31 @@ class ResourceAllocationService
         if (! in_array($allocation['allocation_status'], ['reserved','assigned'], true)) {
             throw new RuntimeException('Esta asignación ya no puede liberarse desde Coordinación.');
         }
-        $db->table('coordination_resource_allocations')->where('id', $allocationId)->update([
-            'allocation_status' => 'released',
-            'released_at' => date('Y-m-d H:i:s'),
-            'modify_user' => $this->actor(),
-            'modify_date' => date('Y-m-d H:i:s'),
-        ]);
+
+        $db->transBegin();
+        try {
+            $db->table('coordination_resource_allocations')->where('id', $allocationId)->update([
+                'allocation_status' => 'released',
+                'released_at' => date('Y-m-d H:i:s'),
+                'modify_user' => $this->actor(),
+                'modify_date' => date('Y-m-d H:i:s'),
+            ]);
+            $remaining = $db->table('coordination_resource_allocations')
+                ->where('employee_id', (int) $allocation['employee_id'])
+                ->where('status', 1)->where('delete_date', null)
+                ->whereIn('allocation_status', ['reserved','assigned','working'])->countAllResults();
+            if ($remaining === 0) {
+                $db->table('employees')->where('id', (int) $allocation['employee_id'])->update([
+                    'availability_status' => 'available',
+                    'modify_user' => $this->actor(),
+                    'modify_date' => date('Y-m-d H:i:s'),
+                ]);
+            }
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            throw $e;
+        }
     }
 
     private function candidatesFor(int $planId, ?string $skillCode, ?string $start, ?string $end): array
@@ -189,8 +220,8 @@ class ResourceAllocationService
 
     private function assertEligible(int $planId, int $employeeId, string $skillCode, ?string $start, ?string $end): void
     {
-        $candidateIds = array_column($this->candidatesFor($planId, $skillCode, $start, $end), 'id');
-        if (! in_array($employeeId, array_map('intval', $candidateIds), true)) {
+        $candidateIds = array_map('intval', array_column($this->candidatesFor($planId, $skillCode, $start, $end), 'id'));
+        if (! in_array($employeeId, $candidateIds, true)) {
             throw new RuntimeException('El colaborador no está disponible, no posee la habilidad requerida o su certificación no es válida.');
         }
     }
@@ -198,8 +229,7 @@ class ResourceAllocationService
     private function hasConflict(int $employeeId, int $currentPlanId, ?string $start, ?string $end): bool
     {
         if ($start === null || $end === null) return false;
-        $db = db_connect();
-        return $db->table('coordination_resource_allocations')
+        return db_connect()->table('coordination_resource_allocations')
             ->where('employee_id', $employeeId)
             ->where('coordination_plan_id !=', $currentPlanId)
             ->where('status', 1)->where('delete_date', null)
@@ -212,27 +242,53 @@ class ResourceAllocationService
     private function insertAllocation(int $planId, ?int $equipmentId, ?int $roleId, int $employeeId, string $type, array $plan): void
     {
         $db = db_connect();
-        $duplicate = $db->table('coordination_resource_allocations')
+        $duplicateQuery = $db->table('coordination_resource_allocations')
             ->where('coordination_plan_id', $planId)->where('employee_id', $employeeId)
+            ->where('allocation_type', $type)
             ->where('status', 1)->where('delete_date', null)
-            ->whereIn('allocation_status', ['reserved','assigned','working'])->get()->getRowArray();
-        if ($duplicate !== null) throw new RuntimeException('El colaborador ya forma parte del equipo operativo de esta coordinación.');
+            ->whereIn('allocation_status', ['reserved','assigned','working']);
+        if ($type === 'operational_role') {
+            $duplicateQuery->where('equipment_id', $equipmentId)->where('resource_role_id', $roleId);
+        }
+        if ($duplicateQuery->get()->getRowArray() !== null) {
+            throw new RuntimeException('El colaborador ya está asignado a esta función dentro de la coordinación.');
+        }
 
-        $db->table('coordination_resource_allocations')->insert([
-            'coordination_plan_id' => $planId,
-            'equipment_id' => $equipmentId,
-            'resource_role_id' => $roleId,
-            'employee_id' => $employeeId,
-            'allocation_type' => $type,
-            'allocation_status' => 'reserved',
-            'starts_at' => $plan['scheduled_start_at'],
-            'ends_at' => $plan['estimated_end_at'],
-            'assigned_by_user_id' => session('auth_user_id') ?: null,
-            'assigned_at' => date('Y-m-d H:i:s'),
-            'status' => 1,
-            'entry_user' => $this->actor(),
-            'entry_date' => date('Y-m-d H:i:s'),
-        ]);
+        $db->transBegin();
+        try {
+            $db->table('coordination_resource_allocations')->insert([
+                'coordination_plan_id' => $planId,
+                'equipment_id' => $equipmentId,
+                'resource_role_id' => $roleId,
+                'employee_id' => $employeeId,
+                'allocation_type' => $type,
+                'allocation_status' => 'reserved',
+                'starts_at' => $plan['scheduled_start_at'],
+                'ends_at' => $plan['estimated_end_at'],
+                'assigned_by_user_id' => session('auth_user_id') ?: null,
+                'assigned_at' => date('Y-m-d H:i:s'),
+                'status' => 1,
+                'entry_user' => $this->actor(),
+                'entry_date' => date('Y-m-d H:i:s'),
+            ]);
+            $db->table('employees')->where('id', $employeeId)->update([
+                'availability_status' => 'reserved',
+                'modify_user' => $this->actor(),
+                'modify_date' => date('Y-m-d H:i:s'),
+            ]);
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            throw $e;
+        }
+    }
+
+    private function findPlan(int $planId): array
+    {
+        $plan = db_connect()->table('coordination_plans')->where('id', $planId)->where('delete_date', null)->get()->getRowArray();
+        if ($plan === null) throw new RuntimeException('Plan de coordinación no encontrado.');
+        if ($plan['status'] !== 'draft') throw new RuntimeException('Solo se pueden modificar recursos mientras la coordinación está en preparación.');
+        return $plan;
     }
 
     private function skillCodeFor(string $roleCode, ?string $categoryCode): ?string
