@@ -77,6 +77,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('', 'WorkOrdersController::index', ['as' => 'work_orders.index']);
         $routes->post('coordination/(:num)', 'WorkOrdersController::createFromCoordination/$1', ['as' => 'work_orders.from_coordination']);
         $routes->get('(:num)', 'WorkOrdersController::show/$1', ['as' => 'work_orders.show']);
+        $routes->post('(:num)/issue', 'WorkOrdersController::issue/$1', ['as' => 'work_orders.issue']);
     });
 
     $routes->group('equipment', static function (RouteCollection $routes): void {
