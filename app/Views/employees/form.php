@@ -29,7 +29,7 @@ $availabilityStatus = (string) old('availability_status', $employee['availabilit
     <div class="grid gap-4 lg:grid-cols-[32px_1.2fr_.8fr_1fr_1fr] lg:items-end">
         <label class="pb-3"><input data-skill-toggle type="checkbox" name="skill_id[]" value="<?= esc($skill['id']) ?>" <?= $checked?'checked':'' ?>></label>
         <div><p class="font-bold text-slate-950"><?= esc($skill['name']) ?></p><p class="text-xs text-slate-500"><?= $skill['requires_certification']?'Certificación requerida':'Capacidad operativa' ?></p></div>
-        <label data-skill-field class="transition-opacity duration-200 <?= $checked?'':'opacity-45' ?>"><span class="mb-1 block text-xs font-semibold">Nivel</span><select name="proficiency_level[<?= esc($skill['id']) ?>]" <?= $checked?'':'disabled' ?>><option value="" <?= $level===''?'selected':'' ?>>Sin asignar nivel</option><option value="trainee" <?= $level==='trainee'?'selected':'' ?>>En formación</option><option value="qualified" <?= $level==='qualified'?'selected':'' ?>>Calificado</option><option value="senior" <?= $level==='senior'?'selected':'' ?>>Senior</option></select></label>
+        <label data-skill-field class="transition-opacity duration-200 <?= $checked?'':'opacity-45' ?>"><span class="mb-1 block text-xs font-semibold">Nivel</span><select data-skill-level name="proficiency_level[<?= esc($skill['id']) ?>]" <?= $checked?'':'disabled' ?>><option value="" <?= $level===''?'selected':'' ?>>Sin asignar nivel</option><option value="trainee" <?= $level==='trainee'?'selected':'' ?>>En formación</option><option value="qualified" <?= $level==='qualified'?'selected':'' ?>>Calificado</option><option value="senior" <?= $level==='senior'?'selected':'' ?>>Senior</option></select></label>
         <label data-skill-field class="transition-opacity duration-200 <?= $checked?'':'opacity-45' ?>"><span class="mb-1 block text-xs font-semibold">Certificación</span><input name="certification_number[<?= esc($skill['id']) ?>]" value="<?= esc($a['certification_number']??'') ?>" class="w-full rounded-xl border border-slate-300 px-3 py-2 disabled:cursor-not-allowed disabled:bg-slate-100" <?= $checked?'':'disabled' ?>></label>
         <label data-skill-field class="transition-opacity duration-200 <?= $checked?'':'opacity-45' ?>"><span class="mb-1 block text-xs font-semibold">Válida hasta</span><input type="date" name="valid_until[<?= esc($skill['id']) ?>]" value="<?= esc($a['valid_until']??'') ?>" class="w-full rounded-xl border border-slate-300 px-3 py-2 disabled:cursor-not-allowed disabled:bg-slate-100" <?= $checked?'':'disabled' ?>></label>
     </div>
@@ -39,21 +39,35 @@ $availabilityStatus = (string) old('availability_status', $employee['availabilit
 <div class="flex justify-end"><button class="rounded-xl bg-cyan-400 px-6 py-3 font-bold text-slate-950">Guardar colaborador</button></div></form>
 
 <script>
-document.querySelectorAll('[data-skill-card]').forEach((card) => {
-    const toggle = card.querySelector('[data-skill-toggle]');
-    const fields = card.querySelectorAll('[data-skill-field]');
-    const controls = card.querySelectorAll('[data-skill-field] select, [data-skill-field] input');
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-skill-card]').forEach((card) => {
+        const toggle = card.querySelector('[data-skill-toggle]');
+        const fields = card.querySelectorAll('[data-skill-field]');
+        const controls = card.querySelectorAll('[data-skill-field] select, [data-skill-field] input');
+        const levelSelect = card.querySelector('[data-skill-level]');
 
-    const sync = () => {
-        const active = toggle.checked;
-        card.classList.toggle('bg-slate-50/60', !active);
-        card.classList.toggle('bg-white', active);
-        fields.forEach((field) => field.classList.toggle('opacity-45', !active));
-        controls.forEach((control) => { control.disabled = !active; });
-    };
+        const sync = () => {
+            const active = toggle.checked;
+            card.classList.toggle('bg-slate-50/60', !active);
+            card.classList.toggle('bg-white', active);
+            fields.forEach((field) => field.classList.toggle('opacity-45', !active));
+            controls.forEach((control) => { control.disabled = !active; });
 
-    toggle.addEventListener('change', sync);
-    sync();
+            if (levelSelect && window.traceOpxChoices) {
+                const choices = window.traceOpxChoices.get(levelSelect);
+                if (choices) {
+                    if (active) {
+                        choices.enable();
+                    } else {
+                        choices.disable();
+                    }
+                }
+            }
+        };
+
+        toggle.addEventListener('change', sync);
+        sync();
+    });
 });
 </script>
 <?= $this->endSection() ?>
