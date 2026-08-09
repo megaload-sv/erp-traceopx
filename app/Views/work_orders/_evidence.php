@@ -41,3 +41,5 @@ $isInProgress = isset($order['status']) && in_array($order['status'], ['in_progr
         <?php if(($evidence ?? [])===[]): ?><div class="md:col-span-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">Todavía no hay evidencias documentales asociadas a esta misión.</div><?php endif ?>
     </div>
 </section>
+
+<?= $this->include('work_orders/_checklist') ?>
