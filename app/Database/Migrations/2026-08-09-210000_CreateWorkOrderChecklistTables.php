@@ -56,7 +56,9 @@ class CreateWorkOrderChecklistTables extends Migration
             'modify_date' => ['type' => 'DATETIME', 'null' => true],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->addKey('work_order_id');
+        // El índice UNIQUE ya sirve también para búsquedas por work_order_id.
+        // No se agrega un índice normal adicional porque MySQL recibiría dos claves
+        // con el mismo nombre generado por Forge (`work_order_id`).
         $this->forge->addUniqueKey('work_order_id');
         $this->forge->addForeignKey('work_order_id', 'work_orders', 'id', 'CASCADE', 'CASCADE');
         $this->forge->addForeignKey('service_case_id', 'service_cases', 'id', 'CASCADE', 'CASCADE');
@@ -84,16 +86,26 @@ class CreateWorkOrderChecklistTables extends Migration
         $this->forge->createTable('work_order_checklist_items', true);
 
         $now = date('Y-m-d H:i:s');
-        $this->db->table('work_order_checklist_templates')->insert([
-            'code' => 'GENERAL_OPERATION',
-            'name' => 'Checklist operativo general',
-            'service_key' => null,
-            'description' => 'Verificaciones base aplicables a una misión operativa cuando no existe un checklist específico por tipo de servicio.',
-            'status' => 1,
-            'entry_user' => 'migration',
-            'entry_date' => $now,
-        ]);
-        $templateId = (int) $this->db->insertID();
+        $template = $this->db->table('work_order_checklist_templates')
+            ->where('code', 'GENERAL_OPERATION')
+            ->get()
+            ->getRowArray();
+
+        if ($template === null) {
+            $this->db->table('work_order_checklist_templates')->insert([
+                'code' => 'GENERAL_OPERATION',
+                'name' => 'Checklist operativo general',
+                'service_key' => null,
+                'description' => 'Verificaciones base aplicables a una misión operativa cuando no existe un checklist específico por tipo de servicio.',
+                'status' => 1,
+                'entry_user' => 'migration',
+                'entry_date' => $now,
+            ]);
+            $templateId = (int) $this->db->insertID();
+        } else {
+            $templateId = (int) $template['id'];
+        }
+
         $items = [
             ['SITE_SAFE', 'Área de trabajo verificada y segura', 'Confirmar condiciones básicas del sitio antes o durante la maniobra.', 1],
             ['EQUIPMENT_READY', 'Maquinaria y equipo verificados para la operación', 'Confirmar que el equipo asignado se encuentra apto y corresponde a la OT.', 1],
@@ -101,7 +113,17 @@ class CreateWorkOrderChecklistTables extends Migration
             ['CLIENT_ALIGNMENT', 'Alcance y condiciones coordinadas con el cliente', 'Confirmar que el responsable en sitio conoce el alcance de la actividad.', 1],
             ['DOCUMENTS_READY', 'Documentación operativa disponible', 'Confirmar permisos, OT u otros documentos requeridos para la misión.', 0],
         ];
+
         foreach ($items as $index => [$code, $label, $description, $required]) {
+            $exists = $this->db->table('work_order_checklist_template_items')
+                ->where('template_id', $templateId)
+                ->where('code', $code)
+                ->countAllResults() > 0;
+
+            if ($exists) {
+                continue;
+            }
+
             $this->db->table('work_order_checklist_template_items')->insert([
                 'template_id' => $templateId,
                 'code' => $code,
