@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\ServiceCaseModel;
 use App\Services\ProcessEngineService;
+use App\Services\WorkOrderChecklistService;
 use RuntimeException;
 
 class ServiceCasesController extends BaseController
@@ -56,6 +57,11 @@ class ServiceCasesController extends BaseController
                 ->get()->getResultArray()
             : [];
 
+        $checklist = null;
+        if ($workOrder !== null && $db->tableExists('work_order_checklists')) {
+            $checklist = (new WorkOrderChecklistService())->ensureForWorkOrder((int) $workOrder['id']);
+        }
+
         return view('service_cases/show', [
             'title' => 'Expediente ' . $case['code'],
             'case' => array_merge($case, [
@@ -71,6 +77,7 @@ class ServiceCasesController extends BaseController
             'coordinationPlan' => $coordinationPlan,
             'workOrder' => $workOrder,
             'evidence' => $evidence,
+            'checklist' => $checklist,
             'events' => $db->table('service_case_events')
                 ->where('service_case_id', $id)
                 ->orderBy('occurred_at', 'DESC')
