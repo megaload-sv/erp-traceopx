@@ -43,3 +43,4 @@ $isInProgress = isset($order['status']) && in_array($order['status'], ['in_progr
 </section>
 
 <?= $this->include('work_orders/_checklist') ?>
+<?= $this->include('work_orders/_incidents') ?>
