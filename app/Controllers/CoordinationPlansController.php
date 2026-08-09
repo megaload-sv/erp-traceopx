@@ -6,6 +6,7 @@ use App\Models\CoordinationPlanModel;
 use App\Models\EquipmentModel;
 use App\Models\ServiceCaseModel;
 use App\Services\ActivityService;
+use App\Services\CoordinationApprovalService;
 use App\Services\ResourceAllocationService;
 use CodeIgniter\HTTP\RedirectResponse;
 use RuntimeException;
@@ -23,7 +24,7 @@ class CoordinationPlansController extends BaseController
             'metrics' => [
                 'total' => count($plans),
                 'draft' => count(array_filter($plans, static fn(array $r): bool => $r['status'] === 'draft')),
-                'ready' => count(array_filter($plans, static fn(array $r): bool => $r['status'] === 'ready')),
+                'ready' => count(array_filter($plans, static fn(array $r): bool => $r['status'] === 'approved')),
             ],
         ]);
     }
@@ -190,6 +191,21 @@ class CoordinationPlansController extends BaseController
         }
     }
 
+    public function approve(int $id): RedirectResponse
+    {
+        try {
+            (new CoordinationApprovalService())->approve($id);
+            return redirect()->to(route_to('coordination.show', $id))
+                ->with('success', 'Coordinación aprobada. Los recursos quedaron asignados formalmente a la misión.');
+        } catch (Throwable $e) {
+            log_message('error', 'Error aprobando coordinación {id}: {message}', [
+                'id' => $id,
+                'message' => $e->getMessage(),
+            ]);
+            return redirect()->to(route_to('coordination.show', $id))->with('error', $e->getMessage());
+        }
+    }
+
     public function show(int $id): string
     {
         $plan = (new CoordinationPlanModel())->detail($id);
@@ -204,6 +220,7 @@ class CoordinationPlansController extends BaseController
             ->get()->getResultArray();
 
         $resourceWorkspace = (new ResourceAllocationService())->workspace($id);
+        $approvalChecklist = (new CoordinationApprovalService())->checklist($id);
         $assignedEquipmentIds = array_map('intval', array_column($equipment, 'equipment_id'));
         $availableToAdd = array_values(array_filter(
             $this->availableEquipment(),
@@ -217,6 +234,7 @@ class CoordinationPlansController extends BaseController
             'equipmentAvailableToAdd' => $availableToAdd,
             'requirements' => $resourceWorkspace['requirements'],
             'resourceWorkspace' => $resourceWorkspace,
+            'approvalChecklist' => $approvalChecklist,
         ]);
     }
 
