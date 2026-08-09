@@ -6,6 +6,7 @@ use App\Models\CoordinationPlanModel;
 use App\Models\EquipmentModel;
 use App\Models\ServiceCaseModel;
 use App\Services\ActivityService;
+use App\Services\ResourceAllocationService;
 use CodeIgniter\HTTP\RedirectResponse;
 use RuntimeException;
 use Throwable;
@@ -27,7 +28,7 @@ class CoordinationPlansController extends BaseController
         ]);
     }
 
-    public function create(int $serviceCaseId): string
+    public function create(int $serviceCaseId): string|RedirectResponse
     {
         $case = (new ServiceCaseModel())
             ->select('service_cases.*, customers.business_name, quotations.subject AS quotation_subject')
@@ -140,21 +141,14 @@ class CoordinationPlansController extends BaseController
             ->where('cpe.delete_date', null)
             ->get()->getResultArray();
 
-        $requirements = $db->table('coordination_plan_equipment cpe')
-            ->select('equipment.id AS equipment_id, equipment.code AS equipment_code, equipment.name AS equipment_name, resource_roles.code AS role_code, resource_roles.name AS role_name, err.requirement_type, err.min_quantity, err.max_quantity')
-            ->join('equipment', 'equipment.id = cpe.equipment_id')
-            ->join('equipment_role_requirements err', 'err.equipment_id = equipment.id AND err.status = 1')
-            ->join('resource_roles', 'resource_roles.id = err.resource_role_id')
-            ->where('cpe.coordination_plan_id', $id)
-            ->where('cpe.delete_date', null)
-            ->orderBy('equipment.code')->orderBy('resource_roles.name')
-            ->get()->getResultArray();
+        $resourceWorkspace = (new ResourceAllocationService())->workspace($id);
 
         return view('coordination/show', [
             'title' => 'Coordinación ' . $plan['code'],
             'plan' => $plan,
             'equipment' => $equipment,
-            'requirements' => $requirements,
+            'requirements' => $resourceWorkspace['requirements'],
+            'resourceWorkspace' => $resourceWorkspace,
         ]);
     }
 
