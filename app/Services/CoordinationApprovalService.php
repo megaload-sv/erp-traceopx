@@ -173,6 +173,7 @@ class CoordinationApprovalService
             );
 
             $db->transCommit();
+            (new ProcessEngineService())->evaluate((int) $check['plan']['service_case_id']);
         } catch (Throwable $e) {
             $db->transRollback();
             throw $e;
