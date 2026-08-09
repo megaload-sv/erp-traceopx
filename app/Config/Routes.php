@@ -80,6 +80,8 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('(:num)/issue', 'WorkOrdersController::issue/$1', ['as' => 'work_orders.issue']);
         $routes->post('(:num)/start', 'WorkOrdersController::start/$1', ['as' => 'work_orders.start']);
         $routes->post('(:num)/mission-log', 'WorkOrdersController::addMissionLog/$1', ['as' => 'work_orders.mission_log.store']);
+        $routes->post('(:num)/evidence', 'WorkOrdersController::addEvidence/$1', ['as' => 'work_orders.evidence.store']);
+        $routes->get('(:num)/evidence/(:num)/download', 'WorkOrdersController::downloadEvidence/$1/$2', ['as' => 'work_orders.evidence.download']);
     });
 
     $routes->group('equipment', static function (RouteCollection $routes): void {
