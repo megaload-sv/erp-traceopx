@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\WorkOrderModel;
 use App\Services\MissionLogService;
+use App\Services\WorkOrderChecklistService;
 use App\Services\WorkOrderEvidenceService;
 use App\Services\WorkOrderService;
 use CodeIgniter\HTTP\RedirectResponse;
@@ -83,6 +84,25 @@ class WorkOrdersController extends BaseController
         }
     }
 
+    public function answerChecklist(int $id, int $itemId): RedirectResponse
+    {
+        try {
+            (new WorkOrderChecklistService())->answer(
+                $id,
+                $itemId,
+                (string) $this->request->getPost('response'),
+                (string) $this->request->getPost('notes')
+            );
+
+            return redirect()->to(route_to('work_orders.show', $id) . '#operational-checklist')
+                ->with('success', 'Verificación operativa actualizada.');
+        } catch (Throwable $e) {
+            log_message('error', 'Error actualizando checklist de OT {id}: {message}', ['id' => $id, 'message' => $e->getMessage()]);
+            return redirect()->to(route_to('work_orders.show', $id) . '#operational-checklist')
+                ->with('error', $e->getMessage());
+        }
+    }
+
     public function addEvidence(int $id): RedirectResponse
     {
         try {
@@ -137,6 +157,9 @@ class WorkOrdersController extends BaseController
         $evidence = $db->tableExists('work_order_evidence')
             ? $db->table('work_order_evidence')->where('work_order_id', $id)->where('delete_date', null)->orderBy('occurred_at', 'DESC')->orderBy('id', 'DESC')->get()->getResultArray()
             : [];
+        $checklist = $db->tableExists('work_order_checklists')
+            ? (new WorkOrderChecklistService())->ensureForWorkOrder($id)
+            : null;
 
         return view('work_orders/show', [
             'title' => 'Orden de Trabajo ' . $order['code'],
@@ -146,6 +169,7 @@ class WorkOrdersController extends BaseController
             'missionLogs' => $missionLogs,
             'missionLogEventTypes' => (new MissionLogService())->eventTypes(),
             'evidence' => $evidence,
+            'checklist' => $checklist,
         ]);
     }
 
