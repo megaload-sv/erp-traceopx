@@ -112,7 +112,7 @@ class ProcessEngineService
             [$nextActionCode, $nextActionLabel, $operationalStatus] = match ($workOrder['status']) {
                 'prepared' => ['work_order.issue', 'Emitir Orden de Trabajo', 'work_order_prepared'],
                 'issued' => ['work_order.start', 'Iniciar ejecución de Orden de Trabajo', 'scheduled'],
-                'in_progress', 'working' => ['work_order.execute', 'Continuar ejecución de Orden de Trabajo', 'in_progress'],
+                'in_progress', 'working' => ['work_order.log', 'Registrar avance operativo', 'in_progress'],
                 'completed', 'finished' => ['customer_acceptance_signed', 'Registrar aceptación de finalización', 'completed_pending_acceptance'],
                 'closed' => ['operational_closure_approved', 'Aprobar cierre operativo', 'completed'],
                 default => ['work_order.review', 'Revisar Orden de Trabajo', (string) $workOrder['status']],
