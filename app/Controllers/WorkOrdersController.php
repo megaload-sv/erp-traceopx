@@ -61,6 +61,21 @@ class WorkOrdersController extends BaseController
         }
     }
 
+    public function start(int $id): RedirectResponse
+    {
+        try {
+            (new WorkOrderService())->start($id, (string) $this->request->getPost('start_notes'));
+            return redirect()->to(route_to('work_orders.show', $id))
+                ->with('success', 'Ejecución iniciada. Personal y maquinaria están ahora en operación.');
+        } catch (Throwable $e) {
+            log_message('error', 'Error iniciando OT {id}: {message}', [
+                'id' => $id,
+                'message' => $e->getMessage(),
+            ]);
+            return redirect()->to(route_to('work_orders.show', $id))->with('error', $e->getMessage());
+        }
+    }
+
     public function show(int $id): string
     {
         $order = (new WorkOrderModel())->detail($id);
@@ -76,12 +91,20 @@ class WorkOrdersController extends BaseController
             ->where('work_order_id', $id)
             ->orderBy('allocation_type', 'DESC')
             ->orderBy('id')->get()->getResultArray();
+        $missionLogs = $db->tableExists('mission_logs')
+            ? $db->table('mission_logs')
+                ->where('work_order_id', $id)
+                ->orderBy('occurred_at', 'DESC')
+                ->orderBy('id', 'DESC')
+                ->get()->getResultArray()
+            : [];
 
         return view('work_orders/show', [
             'title' => 'Orden de Trabajo ' . $order['code'],
             'order' => $order,
             'equipment' => $equipment,
             'team' => $team,
+            'missionLogs' => $missionLogs,
         ]);
     }
 }
