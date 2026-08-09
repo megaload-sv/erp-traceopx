@@ -68,6 +68,14 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('(:num)', 'EquipmentController::update/$1', ['as' => 'equipment.update']);
     });
 
+    $routes->group('employees', static function (RouteCollection $routes): void {
+        $routes->get('', 'EmployeesController::index', ['as' => 'employees.index']);
+        $routes->get('create', 'EmployeesController::create', ['as' => 'employees.create']);
+        $routes->post('', 'EmployeesController::store', ['as' => 'employees.store']);
+        $routes->get('(:num)/edit', 'EmployeesController::edit/$1', ['as' => 'employees.edit']);
+        $routes->post('(:num)', 'EmployeesController::update/$1', ['as' => 'employees.update']);
+    });
+
     $routes->group('commercial-items', static function (RouteCollection $routes): void {
         $routes->get('', 'CommercialItemsController::index', ['as' => 'commercial_items.index']);
         $routes->post('', 'CommercialItemsController::store', ['as' => 'commercial_items.store']);
