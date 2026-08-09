@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\ServiceCaseModel;
 use App\Services\ProcessEngineService;
+use App\Services\ServiceCaseOperationalSummaryService;
 use App\Services\WorkOrderChecklistService;
 use RuntimeException;
 
@@ -62,6 +63,8 @@ class ServiceCasesController extends BaseController
             $checklist = (new WorkOrderChecklistService())->ensureForWorkOrder((int) $workOrder['id']);
         }
 
+        $operationalSummary = (new ServiceCaseOperationalSummaryService())->build($id, $workOrder, $checklist);
+
         return view('service_cases/show', [
             'title' => 'Expediente ' . $case['code'],
             'case' => array_merge($case, [
@@ -73,9 +76,11 @@ class ServiceCasesController extends BaseController
             ]),
             'milestones' => $evaluation['milestones'],
             'exceptions' => $evaluation['exceptions'],
+            'incidents' => $evaluation['incidents'] ?? [],
             'nextAction' => $evaluation['next_action'],
             'coordinationPlan' => $coordinationPlan,
             'workOrder' => $workOrder,
+            'operationalSummary' => $operationalSummary,
             'evidence' => $evidence,
             'checklist' => $checklist,
             'events' => $db->table('service_case_events')
