@@ -12,9 +12,22 @@ class WorkOrdersController extends BaseController
 {
     public function index(): string
     {
+        $db = db_connect();
+        $pendingCoordinations = $db->table('coordination_plans cp')
+            ->select('cp.id, cp.code, cp.scheduled_start_at, cp.location, cp.priority, service_cases.code AS service_case_code, customers.business_name')
+            ->join('service_cases', 'service_cases.id = cp.service_case_id')
+            ->join('customers', 'customers.id = service_cases.customer_id', 'left')
+            ->join('work_orders wo', 'wo.coordination_plan_id = cp.id AND wo.delete_date IS NULL', 'left')
+            ->where('cp.status', 'approved')
+            ->where('cp.delete_date', null)
+            ->where('wo.id', null)
+            ->orderBy('cp.scheduled_start_at', 'ASC')
+            ->get()->getResultArray();
+
         return view('work_orders/index', [
             'title' => 'Órdenes de trabajo',
             'workOrders' => (new WorkOrderModel())->workspaceList(),
+            'pendingCoordinations' => $pendingCoordinations,
         ]);
     }
 
