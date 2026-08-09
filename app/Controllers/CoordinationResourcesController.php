@@ -51,6 +51,18 @@ class CoordinationResourcesController extends BaseController
     public function release(int $planId, int $allocationId): RedirectResponse
     {
         try {
+            $plan = db_connect()->table('coordination_plans')
+                ->where('id', $planId)
+                ->where('delete_date', null)
+                ->get()->getRowArray();
+
+            if ($plan === null) {
+                throw new \RuntimeException('Plan de coordinación no encontrado.');
+            }
+            if ($plan['status'] !== 'draft') {
+                throw new \RuntimeException('La coordinación ya fue aprobada. Cualquier sustitución deberá realizarse mediante el flujo controlado de cambios.');
+            }
+
             (new ResourceAllocationService())->release($planId, $allocationId);
             $this->recordEvent($planId, 'coordination.resource_released', 'Recurso liberado', 'Se liberó una asignación de la coordinación antes de su aprobación.');
 
