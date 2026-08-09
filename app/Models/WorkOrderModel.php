@@ -11,7 +11,8 @@ class WorkOrderModel extends BaseModel
         'subject','scheduled_start_at','estimated_end_at','location','location_reference','priority',
         'scope_snapshot','coordination_notes_snapshot','status','issued_at','issued_by_user_id',
         'issued_to_employee_id','issuance_notes','started_at','started_by_user_id','start_notes',
-        'finished_at','closed_at','created_by_user_id','entry_user','modify_user','delete_user',
+        'finished_at','finished_by_user_id','completion_summary','completion_notes','closed_at',
+        'created_by_user_id','entry_user','modify_user','delete_user',
     ];
 
     public function detail(int $id): ?array
