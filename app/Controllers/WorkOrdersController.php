@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\WorkOrderModel;
 use App\Services\MissionLogService;
+use App\Services\WorkOrderEvidenceService;
 use App\Services\WorkOrderService;
 use CodeIgniter\HTTP\RedirectResponse;
 use RuntimeException;
@@ -36,13 +37,9 @@ class WorkOrdersController extends BaseController
     {
         try {
             $id = (new WorkOrderService())->createFromCoordination($coordinationId);
-            return redirect()->to(route_to('work_orders.show', $id))
-                ->with('success', 'Orden de Trabajo generada correctamente.');
+            return redirect()->to(route_to('work_orders.show', $id))->with('success', 'Orden de Trabajo generada correctamente.');
         } catch (Throwable $e) {
-            log_message('error', 'Error generando OT desde coordinación {id}: {message}', [
-                'id' => $coordinationId,
-                'message' => $e->getMessage(),
-            ]);
+            log_message('error', 'Error generando OT desde coordinación {id}: {message}', ['id' => $coordinationId, 'message' => $e->getMessage()]);
             return redirect()->to(route_to('coordination.show', $coordinationId))->with('error', $e->getMessage());
         }
     }
@@ -51,13 +48,9 @@ class WorkOrdersController extends BaseController
     {
         try {
             (new WorkOrderService())->issue($id, (string) $this->request->getPost('issuance_notes'));
-            return redirect()->to(route_to('work_orders.show', $id))
-                ->with('success', 'Orden de Trabajo emitida y entregada al Responsable de Misión.');
+            return redirect()->to(route_to('work_orders.show', $id))->with('success', 'Orden de Trabajo emitida y entregada al Responsable de Misión.');
         } catch (Throwable $e) {
-            log_message('error', 'Error emitiendo OT {id}: {message}', [
-                'id' => $id,
-                'message' => $e->getMessage(),
-            ]);
+            log_message('error', 'Error emitiendo OT {id}: {message}', ['id' => $id, 'message' => $e->getMessage()]);
             return redirect()->to(route_to('work_orders.show', $id))->with('error', $e->getMessage());
         }
     }
@@ -66,13 +59,9 @@ class WorkOrdersController extends BaseController
     {
         try {
             (new WorkOrderService())->start($id, (string) $this->request->getPost('start_notes'));
-            return redirect()->to(route_to('work_orders.show', $id))
-                ->with('success', 'Ejecución iniciada. Personal y maquinaria están ahora en operación.');
+            return redirect()->to(route_to('work_orders.show', $id))->with('success', 'Ejecución iniciada. Personal y maquinaria están ahora en operación.');
         } catch (Throwable $e) {
-            log_message('error', 'Error iniciando OT {id}: {message}', [
-                'id' => $id,
-                'message' => $e->getMessage(),
-            ]);
+            log_message('error', 'Error iniciando OT {id}: {message}', ['id' => $id, 'message' => $e->getMessage()]);
             return redirect()->to(route_to('work_orders.show', $id))->with('error', $e->getMessage());
         }
     }
@@ -87,18 +76,48 @@ class WorkOrdersController extends BaseController
                 (string) $this->request->getPost('occurred_at'),
                 (string) $this->request->getPost('publish_to_case') === '1'
             );
-
-            return redirect()->to(route_to('work_orders.show', $id))
-                ->with('success', 'Avance operativo registrado en la bitácora de la misión.');
+            return redirect()->to(route_to('work_orders.show', $id))->with('success', 'Avance operativo registrado en la bitácora de la misión.');
         } catch (Throwable $e) {
-            log_message('error', 'Error registrando Mission Log en OT {id}: {message}', [
+            log_message('error', 'Error registrando Mission Log en OT {id}: {message}', ['id' => $id, 'message' => $e->getMessage()]);
+            return redirect()->to(route_to('work_orders.show', $id))->withInput()->with('error', $e->getMessage());
+        }
+    }
+
+    public function addEvidence(int $id): RedirectResponse
+    {
+        try {
+            $file = $this->request->getFile('evidence_file');
+            if ($file === null) {
+                throw new RuntimeException('Seleccione un archivo de evidencia.');
+            }
+
+            (new WorkOrderEvidenceService())->store(
+                $id,
+                $file,
+                (string) $this->request->getPost('evidence_stage'),
+                (string) $this->request->getPost('evidence_description'),
+                $this->nullableInt('mission_log_id')
+            );
+
+            return redirect()->to(route_to('work_orders.show', $id))->with('success', 'Evidencia almacenada y vinculada a la misión.');
+        } catch (Throwable $e) {
+            log_message('error', 'Error cargando evidencia en OT {id}: {message}', ['id' => $id, 'message' => $e->getMessage()]);
+            return redirect()->to(route_to('work_orders.show', $id))->with('error', $e->getMessage());
+        }
+    }
+
+    public function downloadEvidence(int $id, int $evidenceId)
+    {
+        try {
+            $evidence = (new WorkOrderEvidenceService())->findForDownload($id, $evidenceId);
+            return $this->response->download($evidence['absolute_path'], null)->setFileName($evidence['original_name']);
+        } catch (Throwable $e) {
+            log_message('error', 'Error descargando evidencia {evidence} de OT {id}: {message}', [
+                'evidence' => $evidenceId,
                 'id' => $id,
                 'message' => $e->getMessage(),
             ]);
-
-            return redirect()->to(route_to('work_orders.show', $id))
-                ->withInput()
-                ->with('error', $e->getMessage());
+            return redirect()->to(route_to('work_orders.show', $id))->with('error', $e->getMessage());
         }
     }
 
@@ -110,19 +129,13 @@ class WorkOrdersController extends BaseController
         }
 
         $db = db_connect();
-        $equipment = $db->table('work_order_equipment')
-            ->where('work_order_id', $id)
-            ->orderBy('id')->get()->getResultArray();
-        $team = $db->table('work_order_team')
-            ->where('work_order_id', $id)
-            ->orderBy('allocation_type', 'DESC')
-            ->orderBy('id')->get()->getResultArray();
+        $equipment = $db->table('work_order_equipment')->where('work_order_id', $id)->orderBy('id')->get()->getResultArray();
+        $team = $db->table('work_order_team')->where('work_order_id', $id)->orderBy('allocation_type', 'DESC')->orderBy('id')->get()->getResultArray();
         $missionLogs = $db->tableExists('mission_logs')
-            ? $db->table('mission_logs')
-                ->where('work_order_id', $id)
-                ->orderBy('occurred_at', 'DESC')
-                ->orderBy('id', 'DESC')
-                ->get()->getResultArray()
+            ? $db->table('mission_logs')->where('work_order_id', $id)->orderBy('occurred_at', 'DESC')->orderBy('id', 'DESC')->get()->getResultArray()
+            : [];
+        $evidence = $db->tableExists('work_order_evidence')
+            ? $db->table('work_order_evidence')->where('work_order_id', $id)->where('delete_date', null)->orderBy('occurred_at', 'DESC')->orderBy('id', 'DESC')->get()->getResultArray()
             : [];
 
         return view('work_orders/show', [
@@ -132,6 +145,13 @@ class WorkOrdersController extends BaseController
             'team' => $team,
             'missionLogs' => $missionLogs,
             'missionLogEventTypes' => (new MissionLogService())->eventTypes(),
+            'evidence' => $evidence,
         ]);
+    }
+
+    private function nullableInt(string $field): ?int
+    {
+        $value = trim((string) $this->request->getPost($field));
+        return $value === '' ? null : (int) $value;
     }
 }
