@@ -46,6 +46,21 @@ class WorkOrdersController extends BaseController
         }
     }
 
+    public function issue(int $id): RedirectResponse
+    {
+        try {
+            (new WorkOrderService())->issue($id, (string) $this->request->getPost('issuance_notes'));
+            return redirect()->to(route_to('work_orders.show', $id))
+                ->with('success', 'Orden de Trabajo emitida y entregada al Responsable de Misión.');
+        } catch (Throwable $e) {
+            log_message('error', 'Error emitiendo OT {id}: {message}', [
+                'id' => $id,
+                'message' => $e->getMessage(),
+            ]);
+            return redirect()->to(route_to('work_orders.show', $id))->with('error', $e->getMessage());
+        }
+    }
+
     public function show(int $id): string
     {
         $order = (new WorkOrderModel())->detail($id);
