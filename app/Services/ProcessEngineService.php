@@ -29,6 +29,14 @@ class ProcessEngineService
             ->get()
             ->getResultArray();
 
+        $openIncidents = $db->tableExists('work_order_incidents')
+            ? $db->table('work_order_incidents')
+                ->where('service_case_id', $serviceCaseId)
+                ->where('status', 'open')
+                ->orderBy('occurred_at', 'DESC')
+                ->get()->getResultArray()
+            : [];
+
         $coordination = null;
         if ($db->tableExists('coordination_plans')) {
             $coordination = $db->table('coordination_plans')
@@ -41,10 +49,12 @@ class ProcessEngineService
 
         $workOrder = null;
         if ($db->tableExists('work_orders')) {
-            $workOrder = $db->table('work_orders')
-                ->where('service_case_id', $serviceCaseId)
-                ->where('delete_date', null)
-                ->orderBy('id', 'DESC')
+            $workOrder = $db->table('work_orders wo')
+                ->select('wo.*, employees.name AS mission_leader_name, employees.employee_code AS mission_leader_code')
+                ->join('employees', 'employees.id = wo.mission_leader_employee_id', 'left')
+                ->where('wo.service_case_id', $serviceCaseId)
+                ->where('wo.delete_date', null)
+                ->orderBy('wo.id', 'DESC')
                 ->get(1)
                 ->getRowArray();
         }
@@ -65,7 +75,7 @@ class ProcessEngineService
                 'work_order_completed',
                 'work_order',
                 (int) $workOrder['id'],
-                'Orden de Trabajo ejecutada.'
+                'Trabajo operativo finalizado.'
             );
         }
 
@@ -86,14 +96,12 @@ class ProcessEngineService
 
         $penalty = 0;
         foreach ($openExceptions as $exception) {
-            $penalty += match ($exception['severity']) {
-                'critical' => 35,
-                'high' => 20,
-                'medium' => 10,
-                default => 5,
-            };
+            $penalty += $this->severityPenalty((string) $exception['severity']);
         }
-        $healthScore = max(0, 100 - $penalty);
+        foreach ($openIncidents as $incident) {
+            $penalty += $this->severityPenalty((string) $incident['severity']);
+        }
+        $healthScore = max(0, 100 - min(100, $penalty));
 
         $currentStage = (string) $case['current_stage'];
         $operationalStatus = (string) $case['operational_status'];
@@ -117,6 +125,21 @@ class ProcessEngineService
                 'closed' => ['operational_closure_approved', 'Aprobar cierre operativo', 'completed'],
                 default => ['work_order.review', 'Revisar Orden de Trabajo', (string) $workOrder['status']],
             };
+        }
+
+        $criticalIncidents = array_values(array_filter(
+            $openIncidents,
+            static fn(array $incident): bool => $incident['severity'] === 'critical'
+        ));
+        if ($workOrder !== null && in_array($workOrder['status'], ['in_progress', 'working'], true) && $criticalIncidents !== []) {
+            $nextActionCode = 'incident.critical';
+            $nextActionLabel = 'Atender incidencia crítica';
+            $operationalStatus = 'critical_incident';
+        }
+
+        $blockingReasons = array_column($openExceptions, 'title');
+        foreach ($criticalIncidents as $incident) {
+            $blockingReasons[] = 'Incidencia crítica: ' . $incident['title'];
         }
 
         $now = date('Y-m-d H:i:s');
@@ -146,12 +169,13 @@ class ProcessEngineService
             ]),
             'milestones' => $milestones,
             'exceptions' => $openExceptions,
+            'incidents' => $openIncidents,
             'health_score' => $healthScore,
             'next_action' => [
                 'code' => $nextActionCode,
                 'label' => $nextActionLabel,
-                'blocked' => $openExceptions !== [],
-                'blocking_reasons' => array_column($openExceptions, 'title'),
+                'blocked' => $blockingReasons !== [],
+                'blocking_reasons' => $blockingReasons,
             ],
             'coordination' => $coordination,
             'work_order' => $workOrder,
@@ -182,6 +206,16 @@ class ProcessEngineService
             'modify_user' => $this->actor(),
             'modify_date' => date('Y-m-d H:i:s'),
         ]);
+    }
+
+    private function severityPenalty(string $severity): int
+    {
+        return match ($severity) {
+            'critical' => 35,
+            'high' => 20,
+            'medium' => 10,
+            default => 5,
+        };
     }
 
     private function actor(): string
