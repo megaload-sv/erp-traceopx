@@ -81,6 +81,9 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('(:num)/start', 'WorkOrdersController::start/$1', ['as' => 'work_orders.start']);
         $routes->post('(:num)/mission-log', 'WorkOrdersController::addMissionLog/$1', ['as' => 'work_orders.mission_log.store']);
         $routes->post('(:num)/checklist/(:num)', 'WorkOrdersController::answerChecklist/$1/$2', ['as' => 'work_orders.checklist.answer']);
+        $routes->post('(:num)/incidents', 'WorkOrdersController::addIncident/$1', ['as' => 'work_orders.incidents.store']);
+        $routes->post('(:num)/incidents/(:num)/substitution', 'WorkOrdersController::proposePersonnelSubstitution/$1/$2', ['as' => 'work_orders.substitutions.propose']);
+        $routes->post('(:num)/substitutions/(:num)/approve', 'WorkOrdersController::approvePersonnelSubstitution/$1/$2', ['as' => 'work_orders.substitutions.approve']);
         $routes->post('(:num)/evidence', 'WorkOrdersController::addEvidence/$1', ['as' => 'work_orders.evidence.store']);
         $routes->get('(:num)/evidence/(:num)/download', 'WorkOrdersController::downloadEvidence/$1/$2', ['as' => 'work_orders.evidence.download']);
     });
