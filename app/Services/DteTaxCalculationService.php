@@ -64,10 +64,13 @@ class DteTaxCalculationService
                     $ivaItem = round($taxed - ($taxed / (1 + $ivaRate)), 8);
                     $totals['iva'] += $ivaItem;
                 } elseif (in_array($code, ['CCF', 'NC', 'ND'], true) && in_array('20', $taxCodes, true)) {
-                    $iva = round($taxed * $ivaRate, 2);
-                    $this->addTaxSummary($taxSummary, '20', $ivaLabel, $iva);
-                    $totals['iva'] += $iva;
+                    // En CCF/NC/ND el IVA se adiciona al valor gravado. Se conserva también por línea
+                    // para auditoría/UX, aunque el JSON Builder decidirá si el schema serializa ivaItem.
+                    $ivaItem = round($taxed * $ivaRate, 8);
+                    $this->addTaxSummary($taxSummary, '20', $ivaLabel, $ivaItem);
+                    $totals['iva'] += $ivaItem;
                 } elseif ($code === 'FEX' && in_array('C3', $taxCodes, true)) {
+                    $ivaItem = 0.0;
                     $this->addTaxSummary($taxSummary, 'C3', 'Impuesto al Valor Agregado (exportaciones) 0%', 0.0);
                 }
             } else {
@@ -76,14 +79,14 @@ class DteTaxCalculationService
 
             $lineTotal = $gross;
             if (in_array($code, ['CCF', 'NC', 'ND'], true) && $classification === 'taxed' && in_array('20', $taxCodes, true)) {
-                $lineTotal = round($gross + ($gross * $ivaRate), 2);
+                $lineTotal = round($gross + $ivaItem, 2);
             }
 
             $db->table('dte_document_items')->where('id', (int) $item['id'])->update([
                 'non_subject_sale' => $nonSubject,
                 'exempt_sale' => $exempt,
                 'taxed_sale' => $taxed,
-                'iva_item' => $code === 'FCF' ? $ivaItem : 0,
+                'iva_item' => round($ivaItem, 8),
                 'tax_codes_json' => $taxCodes !== [] ? json_encode(array_values(array_unique($taxCodes)), JSON_UNESCAPED_UNICODE) : null,
                 'line_total' => $lineTotal,
                 'modify_user' => $this->actor(),
