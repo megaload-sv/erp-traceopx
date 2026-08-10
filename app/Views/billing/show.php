@@ -10,7 +10,9 @@ $docCode = (string)($dteDocument['document_code'] ?? '');
 $activities = $receiverCatalogs['activities'] ?? [];
 $departments = $receiverCatalogs['departments'] ?? [];
 $municipalities = $receiverCatalogs['municipalities'] ?? [];
-$countries = $receiverCatalogs['countries'] ?? [];
+$receiverDocumentType = (string) old('receiver_document_type', (string)($dteDocument['receiver_document_type'] ?? ''));
+$receiverActivityCode = (string) old('receiver_activity_code', (string)($dteDocument['receiver_activity_code'] ?? ''));
+$receiverActivityDescription = (string) old('receiver_activity_description', (string)($dteDocument['receiver_activity_description'] ?? ''));
 ?>
 
 <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -75,7 +77,14 @@ $countries = $receiverCatalogs['countries'] ?? [];
         <label class="md:col-span-2 text-sm font-semibold text-slate-700">Nombre / razón social<input name="receiver_name" value="<?= esc(old('receiver_name',$dteDocument['receiver_name_snapshot']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
         <label class="md:col-span-2 text-sm font-semibold text-slate-700">Nombre comercial<input name="receiver_trade_name" value="<?= esc(old('receiver_trade_name',$dteDocument['receiver_trade_name_snapshot']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
 
-        <label class="text-sm font-semibold text-slate-700">Tipo de documento<select name="receiver_document_type" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal"><option value="">Sin definir</option><?php foreach(['36'=>'36 · NIT','13'=>'13 · DUI','02'=>'02 · Carné de residente','03'=>'03 · Pasaporte','37'=>'37 · Otro'] as $value=>$label): ?><option value="<?= $value ?>" <?= (string)old('receiver_document_type',$dteDocument['receiver_document_type']??'')===$value?'selected':'' ?>><?= esc($label) ?></option><?php endforeach ?></select></label>
+        <label class="text-sm font-semibold text-slate-700">Tipo de documento
+            <select id="receiver_document_type" name="receiver_document_type" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal">
+                <option value="" <?= $receiverDocumentType===''?'selected':'' ?>>Sin definir</option>
+                <?php foreach(['36'=>'36 · NIT','13'=>'13 · DUI','02'=>'02 · Carné de residente','03'=>'03 · Pasaporte','37'=>'37 · Otro'] as $value=>$label): ?>
+                    <option value="<?= esc($value) ?>" <?= $receiverDocumentType===(string)$value?'selected':'' ?>><?= esc($label) ?></option>
+                <?php endforeach ?>
+            </select>
+        </label>
         <label class="text-sm font-semibold text-slate-700">Número de documento<input name="receiver_document_number" value="<?= esc(old('receiver_document_number',$dteDocument['receiver_document_number']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-mono font-normal"></label>
         <?php if($docCode==='CCF' || $docCode==='FCF'): ?><label class="text-sm font-semibold text-slate-700">NRC<input name="receiver_nrc" value="<?= esc(old('receiver_nrc',$dteDocument['receiver_nrc']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-mono font-normal"></label><?php else: ?><input type="hidden" name="receiver_nrc" value="<?= esc($dteDocument['receiver_nrc']??'') ?>"><?php endif ?>
 
@@ -91,8 +100,18 @@ $countries = $receiverCatalogs['countries'] ?? [];
             <label class="text-sm font-semibold text-slate-700">Municipio<select id="receiver_municipality_code" name="receiver_municipality_code" class="mt-2 w-full" data-placeholder="Seleccionar municipio"><option value="">Seleccionar</option><?php foreach($municipalities as $row): ?><option value="<?= esc($row['code']) ?>" data-department="<?= esc($row['parent_code']) ?>" <?= (string)old('receiver_municipality_code',$dteDocument['receiver_municipality_code']??'')===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
         <?php endif ?>
 
-        <label class="md:col-span-2 text-sm font-semibold text-slate-700">Actividad económica<select name="receiver_activity_code" class="mt-2 w-full" data-placeholder="Seleccionar actividad"><option value="">Sin asignar</option><?php foreach($activities as $row): ?><option value="<?= esc($row['code']) ?>" <?= (string)old('receiver_activity_code',$dteDocument['receiver_activity_code']??'')===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
-        <label class="md:col-span-2 text-sm font-semibold text-slate-700">Descripción actividad<input name="receiver_activity_description" value="<?= esc(old('receiver_activity_description',$dteDocument['receiver_activity_description']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
+        <label class="md:col-span-2 text-sm font-semibold text-slate-700">Actividad económica
+            <select id="receiver_activity_code" name="receiver_activity_code" class="mt-2 w-full" data-placeholder="Seleccionar actividad">
+                <option value="">Sin asignar</option>
+                <?php foreach($activities as $row): ?>
+                    <option value="<?= esc($row['code']) ?>" data-description="<?= esc($row['name']) ?>" <?= $receiverActivityCode===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option>
+                <?php endforeach ?>
+            </select>
+        </label>
+        <label class="md:col-span-2 text-sm font-semibold text-slate-700">Descripción actividad
+            <input id="receiver_activity_description" name="receiver_activity_description" value="<?= esc($receiverActivityDescription) ?>" readonly class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-normal text-slate-600">
+            <span class="mt-1 block text-xs font-normal text-slate-400">Se completa automáticamente desde CAT-019.</span>
+        </label>
         <label class="text-sm font-semibold text-slate-700">Teléfono<input name="receiver_phone" value="<?= esc(old('receiver_phone',$dteDocument['receiver_phone']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
         <label class="text-sm font-semibold text-slate-700">Correo<input name="receiver_email" type="email" value="<?= esc(old('receiver_email',$dteDocument['receiver_email']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
         <label class="md:col-span-2 text-sm font-semibold text-slate-700"><?= $docCode==='FEX'?'Complemento de dirección':'Dirección fiscal' ?><textarea name="receiver_address" rows="3" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"><?= esc(old('receiver_address',$dteDocument['receiver_address']??'')) ?></textarea></label>
@@ -128,9 +147,22 @@ $countries = $receiverCatalogs['countries'] ?? [];
 </aside>
 </div>
 
-<?php if($docCode !== 'FEX'): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const activity = document.getElementById('receiver_activity_code');
+    const activityDescription = document.getElementById('receiver_activity_description');
+
+    function syncActivityDescription() {
+        if (!activity || !activityDescription) return;
+        const option = activity.options[activity.selectedIndex];
+        activityDescription.value = option && option.value ? (option.dataset.description || '') : '';
+    }
+
+    if (activity) {
+        activity.addEventListener('change', syncActivityDescription);
+        syncActivityDescription();
+    }
+
     const department = document.getElementById('receiver_department_code');
     const municipality = document.getElementById('receiver_municipality_code');
     if (!department || !municipality) return;
@@ -138,46 +170,39 @@ document.addEventListener('DOMContentLoaded', function () {
     const allOptions = Array.from(municipality.options).map(option => ({
         value: option.value,
         text: option.text,
-        department: option.dataset.department || ''
+        department: option.dataset.department || '',
+        selected: option.selected
     }));
 
     function filterMunicipalities(preserveSelection = true) {
         const selectedDepartment = department.value;
-        const previousValue = preserveSelection ? municipality.value : '';
+        const currentSelected = allOptions.find(option => option.selected)?.value || '';
+        const previousValue = preserveSelection ? (municipality.value || currentSelected) : '';
 
+        if (municipality.tomselect) municipality.tomselect.destroy();
         municipality.innerHTML = '';
+
         const placeholder = document.createElement('option');
         placeholder.value = '';
         placeholder.textContent = selectedDepartment ? 'Seleccionar municipio' : 'Seleccione primero un departamento';
         municipality.appendChild(placeholder);
 
-        allOptions
-            .filter(option => option.value && option.department === selectedDepartment)
-            .forEach(option => {
-                const element = document.createElement('option');
-                element.value = option.value;
-                element.textContent = option.text;
-                element.dataset.department = option.department;
-                if (previousValue && option.value === previousValue) element.selected = true;
-                municipality.appendChild(element);
-            });
+        allOptions.filter(option => option.value && option.department === selectedDepartment).forEach(option => {
+            const element = document.createElement('option');
+            element.value = option.value;
+            element.textContent = option.text;
+            element.dataset.department = option.department;
+            if (previousValue && option.value === previousValue) element.selected = true;
+            municipality.appendChild(element);
+        });
 
         municipality.disabled = !selectedDepartment;
-        if (municipality.tomselect) {
-            municipality.tomselect.destroy();
-        }
-        if (window.TomSelect && !municipality.disabled) {
-            new TomSelect(municipality, {create:false, allowEmptyOption:true});
-        }
+        if (window.TomSelect && !municipality.disabled) new TomSelect(municipality, {create:false, allowEmptyOption:true});
     }
 
-    department.addEventListener('change', function () {
-        filterMunicipalities(false);
-    });
-
+    department.addEventListener('change', function () { filterMunicipalities(false); });
     filterMunicipalities(true);
 });
 </script>
-<?php endif ?>
 
 <?= $this->endSection() ?>
