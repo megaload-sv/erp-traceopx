@@ -24,8 +24,23 @@ class BillingPaymentService
             ->orderBy('sequence')
             ->get()->getResultArray();
 
+        foreach ($schedule as &$row) {
+            $appliedRow = $db->table('billing_payments')
+                ->selectSum('amount', 'total')
+                ->where('billing_case_id', $billingCaseId)
+                ->where('payment_schedule_id', (int) $row['id'])
+                ->where('status', 'confirmed')
+                ->get()->getRowArray();
+            $applied = round((float) ($appliedRow['total'] ?? 0), 2);
+            $expected = round((float) $row['amount'], 2);
+            $row['applied_amount'] = $applied;
+            $row['remaining_amount'] = max(0, round($expected - $applied, 2));
+        }
+        unset($row);
+
         $target = $this->targetAmount($billingCaseId, $case);
         $paid = $this->confirmedTotal($billingCaseId);
+        $readiness = $this->paymentReadiness($case, $schedule, $target);
 
         return [
             'billingCase' => $case,
@@ -34,6 +49,7 @@ class BillingPaymentService
             'target_amount' => $target,
             'paid_amount' => $paid,
             'balance_amount' => max(0, round($target - $paid, 2)),
+            'payment_readiness' => $readiness,
         ];
     }
 
@@ -83,6 +99,16 @@ class BillingPaymentService
                 throw new RuntimeException('Preparación de facturación no encontrada.');
             }
 
+            $scheduleRows = $db->table('billing_payment_schedule')
+                ->where('billing_case_id', $billingCaseId)
+                ->orderBy('sequence')
+                ->get()->getResultArray();
+            $target = $this->targetAmount($billingCaseId, $case);
+            $readiness = $this->paymentReadiness($case, $scheduleRows, $target);
+            if (! $readiness['allowed']) {
+                throw new RuntimeException('No es posible registrar pagos todavía: ' . implode(' ', $readiness['issues']));
+            }
+
             if ($scheduleId !== null) {
                 $schedule = $db->table('billing_payment_schedule')
                     ->where('id', $scheduleId)
@@ -93,7 +119,6 @@ class BillingPaymentService
                 }
             }
 
-            $target = $this->targetAmount($billingCaseId, $case);
             $paidBefore = $this->confirmedTotal($billingCaseId);
             $balanceBefore = max(0, round($target - $paidBefore, 2));
             if ($amount > $balanceBefore + 0.009) {
@@ -164,7 +189,6 @@ class BillingPaymentService
 
             $db->transCommit();
 
-            // Reevalúa fuera de la transacción del ledger para refrescar la compuerta de Coordinación.
             (new FinancialPolicyService())->evaluateForServiceCase((int) $case['service_case_id']);
             return $paymentId;
         } catch (Throwable $e) {
@@ -207,6 +231,29 @@ class BillingPaymentService
 
         $dteAmount = round((float) ($document['amount_payable'] ?? 0), 2);
         return $dteAmount > 0 ? $dteAmount : round((float) $case['invoiceable_amount'], 2);
+    }
+
+    private function paymentReadiness(array $case, array $schedule, float $target): array
+    {
+        $issues = [];
+
+        if ($target <= 0) {
+            $issues[] = 'Debe existir un monto total por cobrar mayor que cero.';
+        }
+        if (empty($case['payment_term_id']) && trim((string) ($case['payment_term_name_snapshot'] ?? '')) === '') {
+            $issues[] = 'Debe definirse la condición comercial de pago.';
+        }
+        if ($schedule === []) {
+            $issues[] = 'Debe existir el calendario financiero esperado.';
+        }
+        if (trim((string) ($case['currency_code'] ?? '')) === '') {
+            $issues[] = 'Debe definirse la moneda de la operación.';
+        }
+
+        return [
+            'allowed' => $issues === [],
+            'issues' => $issues,
+        ];
     }
 
     private function refreshScheduleStatuses(int $billingCaseId, string $now, string $actor): void
