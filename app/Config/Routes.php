@@ -100,6 +100,9 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
 
     $routes->group('dte-settings', static function (RouteCollection $routes): void {
         $routes->get('', 'DteSettingsController::index', ['as' => 'dte_settings.index']);
+        $routes->get('issuer', 'DteIssuerSettingsController::index', ['as' => 'dte_settings.issuer']);
+        $routes->post('issuer', 'DteIssuerSettingsController::saveIssuer', ['as' => 'dte_settings.issuer.save']);
+        $routes->post('emission', 'DteIssuerSettingsController::saveEmission', ['as' => 'dte_settings.emission.save']);
         $routes->post('establishments', 'DteSettingsController::storeEstablishment', ['as' => 'dte_settings.establishments.store']);
         $routes->post('establishments/(:num)', 'DteSettingsController::updateEstablishment/$1', ['as' => 'dte_settings.establishments.update']);
         $routes->post('points-of-sale', 'DteSettingsController::storePointOfSale', ['as' => 'dte_settings.points_of_sale.store']);
