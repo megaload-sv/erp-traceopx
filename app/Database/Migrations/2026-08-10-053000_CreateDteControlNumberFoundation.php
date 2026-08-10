@@ -94,6 +94,7 @@ class CreateDteControlNumberFoundation extends Migration
             . 'FOREIGN KEY (`point_of_sale_id`) REFERENCES `dte_points_of_sale` (`id`) '
             . 'ON DELETE RESTRICT ON UPDATE CASCADE'
         );
+        $this->db->query('CREATE UNIQUE INDEX `uq_dte_documents_control_number` ON `dte_documents` (`control_number`)');
 
         $now = date('Y-m-d H:i:s');
         if ($this->db->tableExists('dte_settings')) {
@@ -126,6 +127,10 @@ class CreateDteControlNumberFoundation extends Migration
 
     public function down(): void
     {
+        try {
+            $this->db->query('DROP INDEX `uq_dte_documents_control_number` ON `dte_documents`');
+        } catch (\Throwable) {
+        }
         try {
             $this->db->query('ALTER TABLE `dte_documents` DROP FOREIGN KEY `fk_dte_documents_point_of_sale`');
         } catch (\Throwable) {
