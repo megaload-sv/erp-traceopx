@@ -227,6 +227,16 @@ class CoordinationPlansController extends BaseController
             static fn(array $item): bool => ! in_array((int) $item['id'], $assignedEquipmentIds, true)
         ));
 
+        $workOrder = null;
+        if ($db->tableExists('work_orders')) {
+            $workOrder = $db->table('work_orders')
+                ->where('coordination_plan_id', $id)
+                ->where('delete_date', null)
+                ->orderBy('id', 'DESC')
+                ->get(1)
+                ->getRowArray();
+        }
+
         return view('coordination/show', [
             'title' => 'Coordinación ' . $plan['code'],
             'plan' => $plan,
@@ -235,6 +245,7 @@ class CoordinationPlansController extends BaseController
             'requirements' => $resourceWorkspace['requirements'],
             'resourceWorkspace' => $resourceWorkspace,
             'approvalChecklist' => $approvalChecklist,
+            'workOrder' => $workOrder,
         ]);
     }
 

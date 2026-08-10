@@ -73,6 +73,25 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('(:num)/resources/(:num)/release', 'CoordinationResourcesController::release/$1/$2', ['as' => 'coordination.resources.release']);
     });
 
+    $routes->group('work-orders', static function (RouteCollection $routes): void {
+        $routes->get('', 'WorkOrdersController::index', ['as' => 'work_orders.index']);
+        $routes->post('coordination/(:num)', 'WorkOrdersController::createFromCoordination/$1', ['as' => 'work_orders.from_coordination']);
+        $routes->get('(:num)', 'WorkOrdersController::show/$1', ['as' => 'work_orders.show']);
+        $routes->post('(:num)/issue', 'WorkOrdersController::issue/$1', ['as' => 'work_orders.issue']);
+        $routes->post('(:num)/start', 'WorkOrdersController::start/$1', ['as' => 'work_orders.start']);
+        $routes->post('(:num)/finish', 'WorkOrderCompletionController::finish/$1', ['as' => 'work_orders.finish']);
+        $routes->post('(:num)/acceptance', 'WorkOrderAcceptanceController::store/$1', ['as' => 'work_orders.acceptance.store']);
+        $routes->get('(:num)/acceptance/(:num)/signature', 'WorkOrderAcceptanceController::signature/$1/$2', ['as' => 'work_orders.acceptance.signature']);
+        $routes->post('(:num)/close', 'WorkOrderClosureController::close/$1', ['as' => 'work_orders.close']);
+        $routes->post('(:num)/mission-log', 'WorkOrdersController::addMissionLog/$1', ['as' => 'work_orders.mission_log.store']);
+        $routes->post('(:num)/checklist/(:num)', 'WorkOrdersController::answerChecklist/$1/$2', ['as' => 'work_orders.checklist.answer']);
+        $routes->post('(:num)/incidents', 'WorkOrdersController::addIncident/$1', ['as' => 'work_orders.incidents.store']);
+        $routes->post('(:num)/incidents/(:num)/substitution', 'WorkOrdersController::proposePersonnelSubstitution/$1/$2', ['as' => 'work_orders.substitutions.propose']);
+        $routes->post('(:num)/substitutions/(:num)/approve', 'WorkOrdersController::approvePersonnelSubstitution/$1/$2', ['as' => 'work_orders.substitutions.approve']);
+        $routes->post('(:num)/evidence', 'WorkOrdersController::addEvidence/$1', ['as' => 'work_orders.evidence.store']);
+        $routes->get('(:num)/evidence/(:num)/download', 'WorkOrdersController::downloadEvidence/$1/$2', ['as' => 'work_orders.evidence.download']);
+    });
+
     $routes->group('equipment', static function (RouteCollection $routes): void {
         $routes->get('', 'EquipmentController::index', ['as' => 'equipment.index']);
         $routes->get('create', 'EquipmentController::create', ['as' => 'equipment.create']);
