@@ -114,6 +114,10 @@ class DteDocumentService
             ->where('d.id', (int) $document['id'])
             ->get()->getRowArray();
 
+        if (($document['status'] ?? null) === 'draft') {
+            $this->syncMhUnitsForDraft((int) $document['id']);
+        }
+
         return [
             'document' => $document,
             'items' => $db->table('dte_document_items')->where('dte_document_id', (int) $document['id'])->orderBy('sequence')->get()->getResultArray(),
@@ -161,6 +165,32 @@ class DteDocumentService
                 'line_total' => $lineTotal,
                 'entry_user' => $this->actor(),
                 'entry_date' => $now,
+            ]);
+        }
+    }
+
+    private function syncMhUnitsForDraft(int $documentId): void
+    {
+        $db = db_connect();
+        $rows = $db->table('dte_document_items di')
+            ->select('di.id, di.unit_id_snapshot, di.mh_unit_code, cu.mh_unit_measure_id, mum.code AS mapped_code, mum.name AS mapped_name')
+            ->join('commercial_units cu', 'cu.id = di.unit_id_snapshot', 'left')
+            ->join('mh_unit_measurements mum', 'mum.id = cu.mh_unit_measure_id AND mum.status = 1', 'left')
+            ->where('di.dte_document_id', $documentId)
+            ->get()->getResultArray();
+
+        foreach ($rows as $row) {
+            if ($row['mapped_code'] === null) {
+                continue;
+            }
+            if ((string) ($row['mh_unit_code'] ?? '') === (string) $row['mapped_code']) {
+                continue;
+            }
+            $db->table('dte_document_items')->where('id', (int) $row['id'])->update([
+                'mh_unit_code' => (int) $row['mapped_code'],
+                'mh_unit_name_snapshot' => $row['mapped_name'] ?? null,
+                'modify_user' => $this->actor(),
+                'modify_date' => date('Y-m-d H:i:s'),
             ]);
         }
     }
