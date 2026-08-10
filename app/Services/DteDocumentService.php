@@ -18,6 +18,15 @@ class DteDocumentService
         $db = db_connect();
         $existing = $db->table('dte_documents')->where('billing_case_id', $billingCaseId)->get()->getRowArray();
         if ($existing !== null) {
+            if (empty($existing['generation_code'])) {
+                $generationCode = $this->generationCode();
+                $db->table('dte_documents')->where('id', (int) $existing['id'])->update([
+                    'generation_code' => $generationCode,
+                    'modify_user' => $this->actor(),
+                    'modify_date' => date('Y-m-d H:i:s'),
+                ]);
+                $existing['generation_code'] = $generationCode;
+            }
             return $existing;
         }
 
@@ -58,6 +67,7 @@ class DteDocumentService
                 'environment' => '00',
                 'generation_model' => 1,
                 'operation_type' => 1,
+                'generation_code' => $this->generationCode(),
                 'currency_code' => (string) ($source['currency_code'] ?: 'USD'),
                 'receiver_name_snapshot' => $source['business_name'] ?? null,
                 'receiver_trade_name_snapshot' => $source['trade_name'] ?? null,
@@ -118,9 +128,10 @@ class DteDocumentService
 
         $db = db_connect();
         $items = $db->table('quotation_items qi')
-            ->select('qi.*, ci.code AS commercial_item_code, cu.name AS unit_name, cu.symbol AS unit_symbol')
+            ->select('qi.*, ci.code AS commercial_item_code, cu.name AS unit_name, cu.symbol AS unit_symbol, mum.code AS mh_unit_code, mum.name AS mh_unit_name')
             ->join('commercial_items ci', 'ci.id = qi.commercial_item_id', 'left')
             ->join('commercial_units cu', 'cu.id = qi.unit_id', 'left')
+            ->join('mh_unit_measurements mum', 'mum.id = cu.mh_unit_measure_id AND mum.status = 1', 'left')
             ->where('qi.quotation_id', $quotationId)
             ->where('qi.delete_date', null)
             ->orderBy('qi.sort_order')
@@ -142,6 +153,8 @@ class DteDocumentService
                 'unit_id_snapshot' => ! empty($item['unit_id']) ? (int) $item['unit_id'] : null,
                 'unit_name_snapshot' => $item['unit_name'] ?? null,
                 'unit_symbol_snapshot' => $item['unit_symbol'] ?? null,
+                'mh_unit_code' => isset($item['mh_unit_code']) ? (int) $item['mh_unit_code'] : null,
+                'mh_unit_name_snapshot' => $item['mh_unit_name'] ?? null,
                 'unit_price' => (float) $item['unit_price'],
                 'discount_amount' => 0,
                 'taxed_sale' => $lineTotal,
@@ -155,6 +168,11 @@ class DteDocumentService
     private function actor(): string
     {
         return (string) (session('auth_user_email') ?: session('auth_user_name') ?: 'system');
+    }
+
+    private function generationCode(): string
+    {
+        return strtoupper($this->uuidV4());
     }
 
     private function uuidV4(): string
