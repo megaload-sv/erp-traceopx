@@ -5,7 +5,7 @@ namespace App\Controllers;
 use App\Services\BillingPaymentService;
 use App\Services\BillingPreparationService;
 use App\Services\DteDocumentService;
-use App\Services\DteJsonBuilderService;
+use App\Services\DtePreIssueService;
 use App\Services\DteReceiverService;
 use CodeIgniter\HTTP\RedirectResponse;
 use Throwable;
@@ -41,7 +41,7 @@ class BillingController extends BaseController
         $workspace = (new BillingPreparationService())->workspace($id);
         $dte = (new DteDocumentService())->workspace($id);
         $receiver = new DteReceiverService();
-        $jsonPreview = (new DteJsonBuilderService())->buildForBillingCase($id);
+        $jsonPreview = (new DtePreIssueService())->build($id);
         $paymentWorkspace = (new BillingPaymentService())->workspace($id);
 
         $workspace['dteDocument'] = $dte['document'];
@@ -69,7 +69,7 @@ class BillingController extends BaseController
     {
         $workspace = (new BillingPreparationService())->workspace($billingCaseId);
         $dte = (new DteDocumentService())->workspace($billingCaseId);
-        $preview = (new DteJsonBuilderService())->buildForBillingCase($billingCaseId);
+        $preview = (new DtePreIssueService())->build($billingCaseId);
 
         return view('billing/dte_console', [
             'title' => 'DTE Console ' . $workspace['billingCase']['code'],
@@ -86,7 +86,7 @@ class BillingController extends BaseController
                 return $this->dteConsole($billingCaseId);
             }
 
-            $preview = (new DteJsonBuilderService())->buildForBillingCase($billingCaseId);
+            $preview = (new DtePreIssueService())->build($billingCaseId);
             return $this->response
                 ->setContentType('application/json')
                 ->setBody($preview['json']);
