@@ -1,7 +1,17 @@
 <?= $this->extend('layouts/admin') ?>
 <?= $this->section('content') ?>
+
 <?php if(session('success')): ?><div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800"><?= esc(session('success')) ?></div><?php endif ?>
 <?php if(session('error')): ?><div class="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-800"><?= esc(session('error')) ?></div><?php endif ?>
+
+<?php
+$receiverValid = ($dteDocument['receiver_validation_status'] ?? 'pending') === 'valid';
+$docCode = (string)($dteDocument['document_code'] ?? '');
+$activities = $receiverCatalogs['activities'] ?? [];
+$departments = $receiverCatalogs['departments'] ?? [];
+$municipalities = $receiverCatalogs['municipalities'] ?? [];
+$countries = $receiverCatalogs['countries'] ?? [];
+?>
 
 <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
     <div>
@@ -10,7 +20,7 @@
         <div class="mt-3 flex flex-wrap gap-3">
             <a href="<?= route_to('service_cases.show',$billingCase['service_case_id']) ?>" class="font-bold text-violet-700"><?= esc($billingCase['service_case_code']) ?> ↗</a>
             <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">Borrador fiscal</span>
-            <span class="rounded-full bg-cyan-100 px-3 py-1 text-xs font-bold text-cyan-800"><?= esc($dteDocument['document_code']) ?> · MH <?= esc($dteDocument['mh_code']) ?> · v<?= esc((string)$dteDocument['schema_version']) ?></span>
+            <span class="rounded-full bg-cyan-100 px-3 py-1 text-xs font-bold text-cyan-800"><?= esc($docCode) ?> · MH <?= esc($dteDocument['mh_code']) ?> · v<?= esc((string)$dteDocument['schema_version']) ?></span>
         </div>
     </div>
     <a href="<?= route_to('billing.index') ?>" class="rounded-xl border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-700">Volver a facturación</a>
@@ -18,94 +28,103 @@
 
 <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
     <article class="rounded-2xl border border-slate-200 bg-white p-5"><p class="text-xs uppercase tracking-wide text-slate-500">Cliente</p><p class="mt-3 text-lg font-bold"><?= esc($billingCase['business_name']) ?></p></article>
-    <article class="rounded-2xl border border-slate-200 bg-white p-5"><p class="text-xs uppercase tracking-wide text-slate-500">Documento DTE</p><p class="mt-3 text-lg font-bold"><?= esc($dteDocument['document_name']) ?></p><p class="mt-1 text-xs text-slate-500">Esquema <?= esc($dteDocument['schema_file']) ?></p></article>
-    <article class="rounded-2xl border border-slate-200 bg-white p-5"><p class="text-xs uppercase tracking-wide text-slate-500">Total gravado</p><p class="mt-3 text-lg font-bold">$<?= number_format((float)$dteDocument['taxed_total'],2) ?></p></article>
-    <article class="rounded-2xl border border-slate-200 bg-white p-5"><p class="text-xs uppercase tracking-wide text-slate-500">Total operación</p><p class="mt-3 text-lg font-bold">$<?= number_format((float)$dteDocument['operation_total'],2) ?></p></article>
+    <article class="rounded-2xl border border-slate-200 bg-white p-5"><p class="text-xs uppercase tracking-wide text-slate-500">Documento</p><p class="mt-3 text-lg font-bold"><?= esc($dteDocument['document_name']) ?></p><p class="mt-1 text-xs text-slate-500"><?= esc($dteDocument['schema_file']) ?></p></article>
+    <article class="rounded-2xl border border-slate-200 bg-white p-5"><p class="text-xs uppercase tracking-wide text-slate-500">Receptor</p><p class="mt-3 text-lg font-bold <?= $receiverValid?'text-emerald-700':'text-amber-700' ?>"><?= $receiverValid?'Validado':'Pendiente' ?></p></article>
+    <article class="rounded-2xl bg-slate-950 p-5 text-white"><p class="text-xs uppercase tracking-wide text-slate-400">Total operación</p><p class="mt-3 text-lg font-bold">$<?= number_format((float)$dteDocument['operation_total'],2) ?></p></article>
 </section>
 
 <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
 <div class="space-y-6">
+
 <section class="rounded-2xl border border-cyan-200 bg-cyan-50/40 p-6">
-    <p class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-700">Origen trazable</p><h3 class="mt-2 text-xl font-bold">Snapshot fiscal independiente</h3>
-    <p class="mt-2 text-sm leading-6 text-cyan-900">La cotización es el origen comercial. El encabezado y los ítems fiscales ya pertenecen al DTE y pueden clasificarse sin modificar la cotización.</p>
-    <div class="mt-5 grid gap-3 md:grid-cols-3"><div class="rounded-xl bg-white p-4"><p class="text-xs text-slate-500">Cotización</p><p class="mt-2 font-bold"><?= esc($billingCase['quotation_code']) ?></p></div><div class="rounded-xl bg-white p-4"><p class="text-xs text-slate-500">Orden de Trabajo</p><p class="mt-2 font-bold"><?= esc($billingCase['work_order_code'] ?: 'Aún no generada') ?></p></div><div class="rounded-xl bg-white p-4"><p class="text-xs text-slate-500">Condición comercial</p><p class="mt-2 font-bold"><?= esc($billingCase['payment_term_name_snapshot'] ?: 'Sin condición') ?></p></div></div>
+    <p class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-700">Origen trazable</p>
+    <h3 class="mt-2 text-xl font-bold">Snapshot fiscal independiente</h3>
+    <p class="mt-2 text-sm leading-6 text-cyan-900">La cotización y el maestro de clientes son fuentes de origen. El DTE conserva sus propios snapshots para que cambios posteriores no alteren el documento fiscal.</p>
+    <div class="mt-5 grid gap-3 md:grid-cols-3">
+        <div class="rounded-xl bg-white p-4"><p class="text-xs text-slate-500">Cotización</p><p class="mt-2 font-bold"><?= esc($billingCase['quotation_code']) ?></p></div>
+        <div class="rounded-xl bg-white p-4"><p class="text-xs text-slate-500">Orden de Trabajo</p><p class="mt-2 font-bold"><?= esc($billingCase['work_order_code'] ?: 'Aún no generada') ?></p></div>
+        <div class="rounded-xl bg-white p-4"><p class="text-xs text-slate-500">Condición comercial</p><p class="mt-2 font-bold"><?= esc($billingCase['payment_term_name_snapshot'] ?: 'Sin condición') ?></p></div>
+    </div>
 </section>
 
 <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p class="text-xs font-semibold uppercase tracking-[.18em] text-violet-600">Encabezado fiscal</p><h3 class="mt-2 text-xl font-bold">Identificación del DTE</h3></div><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">Estado: <?= esc($dteDocument['status']) ?></span></div>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div><p class="text-xs font-semibold uppercase tracking-[.18em] text-violet-600">Encabezado fiscal</p><h3 class="mt-2 text-xl font-bold">Identificación del DTE</h3></div>
+        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700"><?= esc($dteDocument['status']) ?></span>
+    </div>
     <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div class="rounded-xl bg-slate-50 p-4"><p class="text-xs text-slate-500">Tipo DTE MH</p><p class="mt-2 font-bold"><?= esc($dteDocument['mh_code']) ?></p></div>
-        <div class="rounded-xl bg-slate-50 p-4"><p class="text-xs text-slate-500">Versión schema</p><p class="mt-2 font-bold"><?= esc((string)$dteDocument['schema_version']) ?></p></div>
-        <div class="rounded-xl bg-slate-50 p-4"><p class="text-xs text-slate-500">Moneda</p><p class="mt-2 font-bold"><?= esc($dteDocument['currency_code']) ?></p></div>
-        <div class="rounded-xl bg-slate-50 p-4"><p class="text-xs text-slate-500">Número de control</p><p class="mt-2 font-semibold text-slate-600"><?= esc($dteDocument['control_number'] ?: 'Pendiente de emisión') ?></p></div>
-        <div class="rounded-xl bg-slate-50 p-4 sm:col-span-2"><p class="text-xs text-slate-500">Código de generación · UUID v4</p><p class="mt-2 break-all font-mono text-sm font-bold text-slate-800"><?= esc($dteDocument['generation_code']) ?></p></div>
+        <div class="rounded-xl bg-slate-50 p-4"><p class="text-xs text-slate-500">Versión</p><p class="mt-2 font-bold"><?= esc((string)$dteDocument['schema_version']) ?></p></div>
+        <div class="rounded-xl bg-slate-50 p-4"><p class="text-xs text-slate-500">Ambiente</p><p class="mt-2 font-bold"><?= $dteDocument['environment']==='01'?'Producción':'Pruebas' ?></p></div>
+        <div class="rounded-xl bg-slate-50 p-4"><p class="text-xs text-slate-500">Número de control</p><p class="mt-2 font-semibold"><?= esc($dteDocument['control_number'] ?: 'Pendiente de emisión') ?></p></div>
+        <div class="rounded-xl bg-slate-50 p-4 sm:col-span-2"><p class="text-xs text-slate-500">Código de generación · UUID v4</p><p class="mt-2 break-all font-mono text-sm font-bold"><?= esc($dteDocument['generation_code']) ?></p></div>
     </div>
 </section>
 
-<section id="dte-items" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+<section id="receiver" class="rounded-2xl border <?= $receiverValid?'border-emerald-200':'border-amber-200' ?> bg-white shadow-sm">
     <div class="border-b border-slate-200 p-6">
-        <p class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-600">Cuerpo del documento</p>
-        <h3 class="mt-2 text-xl font-bold">Detalle y clasificación fiscal</h3>
-        <p class="mt-2 text-sm text-slate-500">Cada línea define su naturaleza fiscal y su tributo CAT-015. Los totales del encabezado se recalculan automáticamente.</p>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div><p class="text-xs font-semibold uppercase tracking-[.18em] text-violet-600">Receptor Fiscal</p><h3 class="mt-2 text-xl font-bold">Snapshot del receptor</h3><p class="mt-2 text-sm text-slate-500">Se inicializa desde Clientes, pero pertenece al DTE y puede completarse antes de emitir.</p></div>
+            <span class="rounded-full px-3 py-1 text-xs font-bold <?= $receiverValid?'bg-emerald-100 text-emerald-800':'bg-amber-100 text-amber-800' ?>"><?= $receiverValid?'Validado':'Datos pendientes' ?></span>
+        </div>
+        <?php if($receiverIssues): ?><div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4"><p class="font-bold text-amber-900">Validaciones pendientes</p><ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800"><?php foreach($receiverIssues as $issue): ?><li><?= esc($issue) ?></li><?php endforeach ?></ul></div><?php endif ?>
     </div>
+
+    <form method="post" action="<?= route_to('billing.receiver.update',(int)$billingCase['id']) ?>" class="grid gap-4 p-6 md:grid-cols-2" data-processing-message="Actualizando receptor fiscal…">
+        <?= csrf_field() ?>
+        <label class="md:col-span-2 text-sm font-semibold text-slate-700">Nombre / razón social<input name="receiver_name" value="<?= esc(old('receiver_name',$dteDocument['receiver_name_snapshot']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
+        <label class="md:col-span-2 text-sm font-semibold text-slate-700">Nombre comercial<input name="receiver_trade_name" value="<?= esc(old('receiver_trade_name',$dteDocument['receiver_trade_name_snapshot']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
+
+        <label class="text-sm font-semibold text-slate-700">Tipo de documento<select name="receiver_document_type" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal"><option value="">Sin definir</option><?php foreach(['36'=>'36 · NIT','13'=>'13 · DUI','02'=>'02 · Carné de residente','03'=>'03 · Pasaporte','37'=>'37 · Otro'] as $value=>$label): ?><option value="<?= $value ?>" <?= (string)old('receiver_document_type',$dteDocument['receiver_document_type']??'')===$value?'selected':'' ?>><?= esc($label) ?></option><?php endforeach ?></select></label>
+        <label class="text-sm font-semibold text-slate-700">Número de documento<input name="receiver_document_number" value="<?= esc(old('receiver_document_number',$dteDocument['receiver_document_number']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-mono font-normal"></label>
+        <?php if($docCode==='CCF' || $docCode==='FCF'): ?><label class="text-sm font-semibold text-slate-700">NRC<input name="receiver_nrc" value="<?= esc(old('receiver_nrc',$dteDocument['receiver_nrc']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-mono font-normal"></label><?php else: ?><input type="hidden" name="receiver_nrc" value="<?= esc($dteDocument['receiver_nrc']??'') ?>"><?php endif ?>
+
+        <?php if($docCode==='FEX'): ?>
+            <label class="text-sm font-semibold text-slate-700">Tipo de persona<select name="receiver_person_type" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal"><option value="">Seleccionar</option><option value="1" <?= (int)($dteDocument['receiver_person_type']??0)===1?'selected':'' ?>>1 · Persona natural</option><option value="2" <?= (int)($dteDocument['receiver_person_type']??0)===2?'selected':'' ?>>2 · Persona jurídica</option></select></label>
+            <label class="text-sm font-semibold text-slate-700">Código país<input name="receiver_country_code" value="<?= esc(old('receiver_country_code',$dteDocument['receiver_country_code']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-mono font-normal"></label>
+            <label class="md:col-span-2 text-sm font-semibold text-slate-700">Nombre país<input name="receiver_country_name" value="<?= esc(old('receiver_country_name',$dteDocument['receiver_country_name']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
+        <?php else: ?>
+            <input type="hidden" name="receiver_person_type" value="<?= esc((string)($dteDocument['receiver_person_type']??'')) ?>">
+            <input type="hidden" name="receiver_country_code" value="<?= esc($dteDocument['receiver_country_code']??'') ?>">
+            <input type="hidden" name="receiver_country_name" value="<?= esc($dteDocument['receiver_country_name']??'') ?>">
+            <label class="text-sm font-semibold text-slate-700">Departamento<select name="receiver_department_code" class="mt-2 w-full" data-placeholder="Seleccionar departamento"><option value="">Seleccionar</option><?php foreach($departments as $row): ?><option value="<?= esc($row['code']) ?>" <?= (string)old('receiver_department_code',$dteDocument['receiver_department_code']??'')===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
+            <label class="text-sm font-semibold text-slate-700">Municipio<select name="receiver_municipality_code" class="mt-2 w-full" data-placeholder="Seleccionar municipio"><option value="">Seleccionar</option><?php foreach($municipalities as $row): ?><option value="<?= esc($row['code']) ?>" data-department="<?= esc($row['parent_code']) ?>" <?= (string)old('receiver_municipality_code',$dteDocument['receiver_municipality_code']??'')===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
+        <?php endif ?>
+
+        <label class="md:col-span-2 text-sm font-semibold text-slate-700">Actividad económica<select name="receiver_activity_code" class="mt-2 w-full" data-placeholder="Seleccionar actividad"><option value="">Sin asignar</option><?php foreach($activities as $row): ?><option value="<?= esc($row['code']) ?>" <?= (string)old('receiver_activity_code',$dteDocument['receiver_activity_code']??'')===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
+        <label class="md:col-span-2 text-sm font-semibold text-slate-700">Descripción actividad<input name="receiver_activity_description" value="<?= esc(old('receiver_activity_description',$dteDocument['receiver_activity_description']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
+        <label class="text-sm font-semibold text-slate-700">Teléfono<input name="receiver_phone" value="<?= esc(old('receiver_phone',$dteDocument['receiver_phone']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
+        <label class="text-sm font-semibold text-slate-700">Correo<input name="receiver_email" type="email" value="<?= esc(old('receiver_email',$dteDocument['receiver_email']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
+        <label class="md:col-span-2 text-sm font-semibold text-slate-700"><?= $docCode==='FEX'?'Complemento de dirección':'Dirección fiscal' ?><textarea name="receiver_address" rows="3" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"><?= esc(old('receiver_address',$dteDocument['receiver_address']??'')) ?></textarea></label>
+        <div class="md:col-span-2 flex justify-end"><button class="rounded-xl bg-slate-950 px-5 py-3 font-bold text-white">Guardar y validar receptor</button></div>
+    </form>
+</section>
+
+<section id="dte-items" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="border-b border-slate-200 p-6"><p class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-600">Cuerpo del documento</p><h3 class="mt-2 text-xl font-bold">Detalle y clasificación fiscal</h3><p class="mt-2 text-sm text-slate-500">Los conceptos ya pertenecen a <code>dte_document_items</code> y se recalculan mediante el Tax Calculation Engine.</p></div>
     <div class="divide-y divide-slate-100">
-        <?php foreach($dteItems as $item): ?>
-        <?php $taxCodes = json_decode((string)($item['tax_codes_json'] ?? '[]'), true) ?: []; $selectedTax = $taxCodes[0] ?? ''; ?>
-        <article class="p-5">
-            <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-                <div>
-                    <div class="flex flex-wrap items-center gap-2"><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">#<?= esc((string)$item['sequence']) ?></span><p class="font-bold text-slate-950"><?= esc($item['code'] ?: 'Sin código') ?></p></div>
-                    <p class="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600"><?= esc($item['description']) ?></p>
-                    <div class="mt-4 grid gap-3 sm:grid-cols-4 text-sm"><div><p class="text-xs text-slate-500">Cantidad</p><p class="mt-1 font-semibold"><?= number_format((float)$item['quantity'],3) ?></p></div><div><p class="text-xs text-slate-500">Unidad</p><p class="mt-1 font-semibold"><?= esc($item['unit_symbol_snapshot'] ?: $item['unit_name_snapshot'] ?: 'Pendiente') ?></p><p class="text-xs <?= $item['mh_unit_code'] ? 'text-emerald-600' : 'text-amber-600' ?>"><?= $item['mh_unit_code'] ? 'CAT-014 '.$item['mh_unit_code'] : 'CAT-014 pendiente' ?></p></div><div><p class="text-xs text-slate-500">Precio</p><p class="mt-1 font-semibold">$<?= number_format((float)$item['unit_price'],2) ?></p></div><div><p class="text-xs text-slate-500">Total</p><p class="mt-1 font-bold">$<?= number_format((float)$item['line_total'],2) ?></p></div></div>
-                </div>
-                <form method="post" action="<?= route_to('billing.items.tax.update',(int)$billingCase['id'],(int)$item['id']) ?>" class="rounded-2xl border border-slate-200 bg-slate-50 p-4" data-processing-message="Actualizando clasificación fiscal del ítem…">
-                    <?= csrf_field() ?>
-                    <label class="block text-sm font-semibold text-slate-700">Clasificación fiscal
-                        <select name="fiscal_classification" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal" data-fiscal-classification>
-                            <option value="taxed" <?= ($item['fiscal_classification']??'taxed')==='taxed'?'selected':'' ?>>Gravada</option>
-                            <option value="exempt" <?= ($item['fiscal_classification']??'')==='exempt'?'selected':'' ?>>Exenta</option>
-                            <option value="non_subject" <?= ($item['fiscal_classification']??'')==='non_subject'?'selected':'' ?>>No sujeta</option>
-                        </select>
-                    </label>
-                    <label class="mt-3 block text-sm font-semibold text-slate-700">Tributo CAT-015
-                        <select name="tax_code" class="mt-2 w-full" data-placeholder="Seleccionar tributo" data-tax-code>
-                            <option value="">Sin tributo</option>
-                            <?php foreach($taxCatalog as $tax): ?><option value="<?= esc($tax['code']) ?>" <?= $selectedTax===$tax['code']?'selected':'' ?>><?= esc($tax['code']) ?> · <?= esc($tax['name']) ?></option><?php endforeach ?>
-                        </select>
-                    </label>
-                    <div class="mt-4 grid grid-cols-3 gap-2 text-center text-xs"><div class="rounded-lg bg-white p-2"><p class="text-slate-400">No sujeta</p><p class="mt-1 font-bold">$<?= number_format((float)$item['non_subject_sale'],2) ?></p></div><div class="rounded-lg bg-white p-2"><p class="text-slate-400">Exenta</p><p class="mt-1 font-bold">$<?= number_format((float)$item['exempt_sale'],2) ?></p></div><div class="rounded-lg bg-white p-2"><p class="text-slate-400">Gravada</p><p class="mt-1 font-bold">$<?= number_format((float)$item['taxed_sale'],2) ?></p></div></div>
-                    <button class="mt-4 w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white">Guardar clasificación fiscal</button>
-                </form>
-            </div>
-        </article>
+        <?php foreach($dteItems as $item): $taxCodes=json_decode((string)($item['tax_codes_json']??'[]'),true)?:[]; $selectedTax=$taxCodes[0]??''; ?>
+        <article class="p-5"><div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div><div class="flex items-center gap-2"><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold">#<?= esc((string)$item['sequence']) ?></span><p class="font-bold"><?= esc($item['code']?:'Sin código') ?></p></div><p class="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600"><?= esc($item['description']) ?></p><div class="mt-4 grid gap-3 sm:grid-cols-4 text-sm"><div><p class="text-xs text-slate-500">Cantidad</p><p class="font-semibold"><?= number_format((float)$item['quantity'],3) ?></p></div><div><p class="text-xs text-slate-500">Unidad</p><p class="font-semibold"><?= esc($item['unit_symbol_snapshot']?:$item['unit_name_snapshot']?:'Pendiente') ?></p><p class="text-xs <?= $item['mh_unit_code']?'text-emerald-600':'text-amber-600' ?>"><?= $item['mh_unit_code']?'CAT-014 '.$item['mh_unit_code']:'CAT-014 pendiente' ?></p></div><div><p class="text-xs text-slate-500">Precio</p><p class="font-semibold">$<?= number_format((float)$item['unit_price'],2) ?></p></div><div><p class="text-xs text-slate-500">Total</p><p class="font-bold">$<?= number_format((float)$item['line_total'],2) ?></p></div></div><?php if($docCode==='FCF' && (float)$item['iva_item']>0): ?><p class="mt-3 text-xs font-semibold text-cyan-700">IVA incluido del ítem: $<?= number_format((float)$item['iva_item'],2) ?></p><?php endif ?></div>
+            <form method="post" action="<?= route_to('billing.items.tax.update',(int)$billingCase['id'],(int)$item['id']) ?>" class="rounded-2xl border border-slate-200 bg-slate-50 p-4" data-processing-message="Actualizando clasificación fiscal…"><?= csrf_field() ?><label class="block text-sm font-semibold">Clasificación<select name="fiscal_classification" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal"><option value="taxed" <?= ($item['fiscal_classification']??'taxed')==='taxed'?'selected':'' ?>>Gravada</option><option value="exempt" <?= ($item['fiscal_classification']??'')==='exempt'?'selected':'' ?>>Exenta</option><option value="non_subject" <?= ($item['fiscal_classification']??'')==='non_subject'?'selected':'' ?>>No sujeta</option></select></label><label class="mt-3 block text-sm font-semibold">Tributo CAT-015<select name="tax_code" class="mt-2 w-full"><option value="">Sin tributo</option><?php foreach($taxCatalog as $tax): ?><option value="<?= esc($tax['code']) ?>" <?= $selectedTax===$tax['code']?'selected':'' ?>><?= esc($tax['code'].' · '.$tax['name']) ?></option><?php endforeach ?></select></label><button class="mt-4 w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white">Guardar clasificación</button></form>
+        </div></article>
         <?php endforeach ?>
-        <?php if($dteItems===[]): ?><div class="p-10 text-center text-sm text-slate-500">El documento aún no tiene ítems fiscales.</div><?php endif ?>
     </div>
 </section>
 
 <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
     <p class="text-xs font-semibold uppercase tracking-[.18em] text-violet-600">Resumen fiscal</p><h3 class="mt-2 text-xl font-bold">Totales del DTE</h3>
-    <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div class="rounded-xl bg-slate-50 p-4"><p class="text-xs text-slate-500">No sujeto</p><p class="mt-2 text-lg font-bold">$<?= number_format((float)$dteDocument['non_subject_total'],2) ?></p></div><div class="rounded-xl bg-slate-50 p-4"><p class="text-xs text-slate-500">Exento</p><p class="mt-2 text-lg font-bold">$<?= number_format((float)$dteDocument['exempt_total'],2) ?></p></div><div class="rounded-xl bg-slate-50 p-4"><p class="text-xs text-slate-500">Gravado</p><p class="mt-2 text-lg font-bold">$<?= number_format((float)$dteDocument['taxed_total'],2) ?></p></div><div class="rounded-xl bg-slate-950 p-4 text-white"><p class="text-xs text-slate-400">Total operación</p><p class="mt-2 text-lg font-bold">$<?= number_format((float)$dteDocument['operation_total'],2) ?></p></div></div>
+    <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5"><div class="rounded-xl bg-slate-50 p-4"><p class="text-xs text-slate-500">No sujeto</p><p class="mt-2 font-bold">$<?= number_format((float)$dteDocument['non_subject_total'],2) ?></p></div><div class="rounded-xl bg-slate-50 p-4"><p class="text-xs text-slate-500">Exento</p><p class="mt-2 font-bold">$<?= number_format((float)$dteDocument['exempt_total'],2) ?></p></div><div class="rounded-xl bg-slate-50 p-4"><p class="text-xs text-slate-500">Gravado</p><p class="mt-2 font-bold">$<?= number_format((float)$dteDocument['taxed_total'],2) ?></p></div><div class="rounded-xl bg-slate-50 p-4"><p class="text-xs text-slate-500">IVA</p><p class="mt-2 font-bold">$<?= number_format((float)$dteDocument['iva_total'],2) ?></p></div><div class="rounded-xl bg-slate-950 p-4 text-white"><p class="text-xs text-slate-400">Total</p><p class="mt-2 font-bold">$<?= number_format((float)$dteDocument['operation_total'],2) ?></p></div></div>
+    <?php if($taxSummary): ?><div class="mt-5 space-y-2"><?php foreach($taxSummary as $tax): ?><div class="flex justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm"><span><?= esc(($tax['codigo']??'').' · '.($tax['descripcion']??'')) ?></span><strong>$<?= number_format((float)($tax['valor']??0),2) ?></strong></div><?php endforeach ?></div><?php endif ?>
 </section>
 
-<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><p class="text-xs font-semibold uppercase tracking-[.18em] text-violet-600">Plan financiero heredado</p><h3 class="mt-2 text-xl font-bold">Calendario esperado de cobro</h3><div class="mt-5 space-y-3"><?php foreach($schedule as $item): ?><article class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p class="font-bold"><?= esc($item['concept']) ?></p><p class="mt-1 text-xs text-slate-500"><?= number_format((float)$item['percentage'],2) ?>% · <?= esc(str_replace('_',' ',$item['trigger_event'] ?? '')) ?></p></div><div class="text-right"><p class="text-lg font-bold">$<?= number_format((float)$item['amount'],2) ?></p><span class="text-xs font-semibold text-amber-700">Pendiente</span></div></article><?php endforeach ?></div></section>
-</div>
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><p class="text-xs font-semibold uppercase tracking-[.18em] text-violet-600">Plan financiero</p><h3 class="mt-2 text-xl font-bold">Calendario esperado de cobro</h3><div class="mt-5 space-y-3"><?php foreach($schedule as $row): ?><article class="flex items-center justify-between rounded-xl bg-slate-50 p-4"><div><p class="font-bold"><?= esc($row['concept']) ?></p><p class="text-xs text-slate-500"><?= number_format((float)$row['percentage'],2) ?>%</p></div><p class="text-lg font-bold">$<?= number_format((float)$row['amount'],2) ?></p></article><?php endforeach ?></div></section>
 
+</div>
 <aside class="space-y-6 xl:sticky xl:top-6 xl:self-start">
-<section class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl"><p class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-400">Próxima acción</p><h3 class="mt-3 text-xl font-bold">Completar fiscalización del DTE</h3><p class="mt-3 text-sm leading-6 text-slate-300">CAT-014 y CAT-015 ya forman parte del detalle. El siguiente incremento completará receptor y reglas específicas por tipo de documento antes de validar el JSON Schema.</p></section>
-<section class="rounded-2xl border border-slate-200 bg-white p-6"><p class="text-xs font-semibold uppercase tracking-[.18em] text-slate-500">Resumen DTE</p><dl class="mt-5 space-y-4 text-sm"><div class="flex justify-between"><dt class="text-slate-500">Ítems</dt><dd class="font-bold"><?= count($dteItems) ?></dd></div><div class="flex justify-between"><dt class="text-slate-500">Facturable</dt><dd class="font-bold">$<?= number_format((float)$billingCase['invoiceable_amount'],2) ?></dd></div><div class="flex justify-between"><dt class="text-slate-500">Pagado</dt><dd class="font-bold">$<?= number_format((float)$billingCase['paid_amount'],2) ?></dd></div><div class="flex justify-between"><dt class="text-slate-500">Pendiente</dt><dd class="font-bold">$<?= number_format((float)$billingCase['balance_amount'],2) ?></dd></div></dl></section>
+    <section class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl"><p class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-400">Próxima acción</p><h3 class="mt-3 text-xl font-bold"><?= $receiverValid?'Construir JSON DTE':'Completar receptor fiscal' ?></h3><p class="mt-3 text-sm leading-6 text-slate-300"><?= $receiverValid?'Receptor, detalle y cálculo fiscal ya tienen base suficiente para comenzar la construcción y validación del JSON Schema.':'Resuelva las validaciones del receptor antes de avanzar al ensamblado del JSON.' ?></p></section>
+    <section class="rounded-2xl border border-slate-200 bg-white p-6"><p class="text-xs font-semibold uppercase tracking-[.18em] text-slate-500">Control de preparación</p><dl class="mt-5 space-y-4 text-sm"><div class="flex justify-between"><dt class="text-slate-500">Receptor</dt><dd class="font-bold <?= $receiverValid?'text-emerald-700':'text-amber-700' ?>"><?= $receiverValid?'OK':'Pendiente' ?></dd></div><div class="flex justify-between"><dt class="text-slate-500">Ítems</dt><dd class="font-bold"><?= count($dteItems) ?></dd></div><div class="flex justify-between"><dt class="text-slate-500">CAT-014 pendientes</dt><dd class="font-bold"><?= count(array_filter($dteItems,static fn($i)=>empty($i['mh_unit_code']))) ?></dd></div><div class="flex justify-between"><dt class="text-slate-500">Número control</dt><dd class="font-bold"><?= $dteDocument['control_number']?'Asignado':'No consumido' ?></dd></div></dl></section>
 </aside>
 </div>
 
-<?= $this->section('scripts') ?>
-<script>
-document.addEventListener('DOMContentLoaded',()=>{
-  document.querySelectorAll('[data-fiscal-classification]').forEach(select=>{
-    const form=select.closest('form'); const tax=form?.querySelector('[data-tax-code]');
-    const sync=()=>{ if(!tax)return; const disabled=select.value!=='taxed'; tax.disabled=disabled; if(disabled){ const choices=window.traceOpxChoices?.get(tax); if(choices) choices.setChoiceByValue(''); else tax.value=''; } };
-    select.addEventListener('change',sync); sync();
-  });
-});
-</script>
-<?= $this->endSection() ?>
 <?= $this->endSection() ?>
