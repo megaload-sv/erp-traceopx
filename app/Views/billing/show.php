@@ -13,6 +13,8 @@ $municipalities = $receiverCatalogs['municipalities'] ?? [];
 $receiverDocumentType = (string) old('receiver_document_type', (string)($dteDocument['receiver_document_type'] ?? ''));
 $receiverActivityCode = (string) old('receiver_activity_code', (string)($dteDocument['receiver_activity_code'] ?? ''));
 $receiverActivityDescription = (string) old('receiver_activity_description', (string)($dteDocument['receiver_activity_description'] ?? ''));
+$receiverDepartmentCode = (string) old('receiver_department_code', (string)($dteDocument['receiver_department_code'] ?? ''));
+$receiverMunicipalityCode = (string) old('receiver_municipality_code', (string)($dteDocument['receiver_municipality_code'] ?? ''));
 ?>
 
 <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -96,8 +98,8 @@ $receiverActivityDescription = (string) old('receiver_activity_description', (st
             <input type="hidden" name="receiver_person_type" value="<?= esc((string)($dteDocument['receiver_person_type']??'')) ?>">
             <input type="hidden" name="receiver_country_code" value="<?= esc($dteDocument['receiver_country_code']??'') ?>">
             <input type="hidden" name="receiver_country_name" value="<?= esc($dteDocument['receiver_country_name']??'') ?>">
-            <label class="text-sm font-semibold text-slate-700">Departamento<select id="receiver_department_code" name="receiver_department_code" class="mt-2 w-full" data-placeholder="Seleccionar departamento"><option value="">Seleccionar</option><?php foreach($departments as $row): ?><option value="<?= esc($row['code']) ?>" <?= (string)old('receiver_department_code',$dteDocument['receiver_department_code']??'')===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
-            <label class="text-sm font-semibold text-slate-700">Municipio<select id="receiver_municipality_code" name="receiver_municipality_code" class="mt-2 w-full" data-placeholder="Seleccionar municipio"><option value="">Seleccionar</option><?php foreach($municipalities as $row): ?><option value="<?= esc($row['code']) ?>" data-department="<?= esc($row['parent_code']) ?>" <?= (string)old('receiver_municipality_code',$dteDocument['receiver_municipality_code']??'')===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
+            <label class="text-sm font-semibold text-slate-700">Departamento<select id="receiver_department_code" name="receiver_department_code" class="mt-2 w-full" data-placeholder="Seleccionar departamento"><option value="">Seleccionar</option><?php foreach($departments as $row): ?><option value="<?= esc($row['code']) ?>" <?= $receiverDepartmentCode===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
+            <label class="text-sm font-semibold text-slate-700">Municipio<select id="receiver_municipality_code" name="receiver_municipality_code" class="mt-2 w-full" data-placeholder="Seleccionar municipio"><option value="">Seleccionar</option><?php foreach($municipalities as $row): ?><option value="<?= esc($row['code']) ?>" data-department="<?= esc($row['parent_code']) ?>" <?= $receiverMunicipalityCode===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
         <?php endif ?>
 
         <label class="md:col-span-2 text-sm font-semibold text-slate-700">Actividad económica
@@ -167,17 +169,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const municipality = document.getElementById('receiver_municipality_code');
     if (!department || !municipality) return;
 
+    const persistedMunicipality = <?= json_encode($receiverMunicipalityCode, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     const allOptions = Array.from(municipality.options).map(option => ({
         value: option.value,
         text: option.text,
-        department: option.dataset.department || '',
-        selected: option.selected
+        department: option.dataset.department || ''
     }));
 
-    function filterMunicipalities(preserveSelection = true) {
+    function filterMunicipalities(selectedValue = '') {
         const selectedDepartment = department.value;
-        const currentSelected = allOptions.find(option => option.selected)?.value || '';
-        const previousValue = preserveSelection ? (municipality.value || currentSelected) : '';
 
         if (municipality.tomselect) municipality.tomselect.destroy();
         municipality.innerHTML = '';
@@ -192,16 +192,23 @@ document.addEventListener('DOMContentLoaded', function () {
             element.value = option.value;
             element.textContent = option.text;
             element.dataset.department = option.department;
-            if (previousValue && option.value === previousValue) element.selected = true;
+            if (selectedValue && option.value === selectedValue) element.selected = true;
             municipality.appendChild(element);
         });
 
         municipality.disabled = !selectedDepartment;
-        if (window.TomSelect && !municipality.disabled) new TomSelect(municipality, {create:false, allowEmptyOption:true});
+
+        if (window.TomSelect && !municipality.disabled) {
+            const control = new TomSelect(municipality, {create:false, allowEmptyOption:true});
+            if (selectedValue && control.options[selectedValue]) control.setValue(selectedValue, true);
+        }
     }
 
-    department.addEventListener('change', function () { filterMunicipalities(false); });
-    filterMunicipalities(true);
+    department.addEventListener('change', function () {
+        filterMunicipalities('');
+    });
+
+    filterMunicipalities(persistedMunicipality);
 });
 </script>
 
