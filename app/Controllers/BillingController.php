@@ -73,6 +73,10 @@ class BillingController extends BaseController
     public function jsonPreview(int $billingCaseId)
     {
         try {
+            if ((string) $this->request->getGet('view') === 'console') {
+                return $this->dteConsole($billingCaseId);
+            }
+
             $preview = (new DteJsonBuilderService())->buildForBillingCase($billingCaseId);
             return $this->response
                 ->setContentType('application/json')
