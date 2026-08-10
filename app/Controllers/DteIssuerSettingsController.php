@@ -35,21 +35,44 @@ class DteIssuerSettingsController extends BaseController
                 ->where('pos.status', 1)
                 ->where('est.status', 1)
                 ->orderBy('est.name')->orderBy('pos.name')->get()->getResultArray(),
+            'establishmentTypes' => $this->catalog('CAT-009'),
+            'departments' => $this->catalog('CAT-012'),
+            'municipalities' => $this->catalog('CAT-013'),
+            'economicActivities' => $this->catalog('CAT-019'),
         ]);
     }
 
     public function saveIssuer(): RedirectResponse
     {
+        $activityCode = trim((string) $this->request->getPost('activity_code'));
+        $establishmentTypeCode = strtoupper(trim((string) $this->request->getPost('establishment_type_code')));
+        $departmentCode = str_pad(trim((string) $this->request->getPost('department_code')), 2, '0', STR_PAD_LEFT);
+        $municipalityCode = str_pad(trim((string) $this->request->getPost('municipality_code')), 2, '0', STR_PAD_LEFT);
+
+        $activity = $this->catalogValue('CAT-019', $activityCode);
+        if ($activity === null) {
+            return redirect()->back()->withInput()->with('error', 'Seleccione una actividad económica válida de CAT-019.');
+        }
+        if ($establishmentTypeCode !== '' && $this->catalogValue('CAT-009', $establishmentTypeCode) === null) {
+            return redirect()->back()->withInput()->with('error', 'Seleccione un tipo de establecimiento válido de CAT-009.');
+        }
+        if ($this->catalogValue('CAT-012', $departmentCode) === null) {
+            return redirect()->back()->withInput()->with('error', 'Seleccione un departamento válido de CAT-012.');
+        }
+        if ($this->catalogValue('CAT-013', $municipalityCode, $departmentCode) === null) {
+            return redirect()->back()->withInput()->with('error', 'El municipio seleccionado no corresponde al departamento indicado en CAT-013.');
+        }
+
         $data = [
             'legal_name' => trim((string) $this->request->getPost('legal_name')),
             'trade_name' => trim((string) $this->request->getPost('trade_name')) ?: null,
             'nit' => strtoupper(trim((string) $this->request->getPost('nit'))),
             'nrc' => strtoupper(trim((string) $this->request->getPost('nrc'))) ?: null,
-            'activity_code' => trim((string) $this->request->getPost('activity_code')),
-            'activity_description' => trim((string) $this->request->getPost('activity_description')),
-            'establishment_type_code' => strtoupper(trim((string) $this->request->getPost('establishment_type_code'))) ?: null,
-            'department_code' => trim((string) $this->request->getPost('department_code')),
-            'municipality_code' => trim((string) $this->request->getPost('municipality_code')),
+            'activity_code' => $activityCode,
+            'activity_description' => (string) $activity['name'],
+            'establishment_type_code' => $establishmentTypeCode ?: null,
+            'department_code' => $departmentCode,
+            'municipality_code' => $municipalityCode,
             'address_complement' => trim((string) $this->request->getPost('address_complement')),
             'phone' => trim((string) $this->request->getPost('phone')),
             'email' => strtolower(trim((string) $this->request->getPost('email'))),
@@ -57,7 +80,7 @@ class DteIssuerSettingsController extends BaseController
             'mh_establishment_code_alt' => strtoupper(trim((string) $this->request->getPost('mh_establishment_code_alt'))) ?: null,
         ];
 
-        foreach (['legal_name', 'nit', 'activity_code', 'activity_description', 'department_code', 'municipality_code', 'address_complement', 'phone', 'email'] as $required) {
+        foreach (['legal_name', 'nit', 'activity_code', 'department_code', 'municipality_code', 'address_complement', 'phone', 'email'] as $required) {
             if ($data[$required] === '') {
                 return redirect()->back()->withInput()->with('error', 'Complete todos los datos fiscales obligatorios del emisor.');
             }
@@ -116,13 +139,36 @@ class DteIssuerSettingsController extends BaseController
         $this->saveSetting('default_establishment_id', (string) $establishmentId);
         $this->saveSetting('default_point_of_sale_id', (string) $pointOfSaleId);
 
-        // Conservamos una sola marca default coherente con la configuración general.
         $db->table('dte_establishments')->update(['is_default' => 0]);
         $db->table('dte_establishments')->where('id', $establishmentId)->update(['is_default' => 1]);
         $db->table('dte_points_of_sale')->update(['is_default' => 0]);
         $db->table('dte_points_of_sale')->where('id', $pointOfSaleId)->update(['is_default' => 1]);
 
         return redirect()->to(route_to('dte_settings.issuer') . '#emission')->with('success', 'Parámetros predeterminados de emisión actualizados.');
+    }
+
+    private function catalog(string $catalogCode): array
+    {
+        return db_connect()->table('mh_catalog_values')
+            ->where('catalog_code', $catalogCode)
+            ->where('status', 1)
+            ->orderBy('display_order')
+            ->orderBy('name')
+            ->get()->getResultArray();
+    }
+
+    private function catalogValue(string $catalogCode, string $code, ?string $parentCode = null): ?array
+    {
+        $builder = db_connect()->table('mh_catalog_values')
+            ->where('catalog_code', $catalogCode)
+            ->where('code', $code)
+            ->where('status', 1);
+
+        if ($parentCode !== null) {
+            $builder->where('parent_code', $parentCode);
+        }
+
+        return $builder->get()->getRowArray();
     }
 
     private function saveSetting(string $key, string $value): void
