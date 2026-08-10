@@ -32,6 +32,11 @@ $resultClasses = [
         </div>
         <?php if(!empty($successfulAcceptance['observations'])): ?><div class="mt-4 rounded-xl border border-emerald-200 bg-white p-4"><p class="text-xs uppercase tracking-wide text-slate-500">Observaciones de recepción</p><p class="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700"><?= esc($successfulAcceptance['observations']) ?></p></div><?php endif ?>
         <div class="mt-5 rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900"><strong>Recepción confirmada.</strong> El hito de aceptación queda completado y la Orden de Trabajo está preparada para el cierre formal antes de continuar a la etapa administrativa.</div>
+        <?php if($order['status'] === 'accepted'): ?>
+            <div class="mt-5 flex justify-end">
+                <a href="#formal-closure" class="inline-flex items-center justify-center rounded-xl bg-cyan-500 px-5 py-3 font-bold text-slate-950 hover:bg-cyan-400">Continuar al cierre formal →</a>
+            </div>
+        <?php endif ?>
     <?php elseif($isFinishedForAcceptance): ?>
         <form method="post" enctype="multipart/form-data" action="<?= route_to('work_orders.acceptance.store',$order['id']) ?>" data-processing-message="Registrando aceptación del cliente…" class="mt-6 rounded-2xl border border-violet-200 bg-violet-50/30 p-5">
             <?= csrf_field() ?>
@@ -60,6 +65,8 @@ $resultClasses = [
         </div>
     <?php endif ?>
 </section>
+
+<?= $this->include('work_orders/_closure') ?>
 
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
