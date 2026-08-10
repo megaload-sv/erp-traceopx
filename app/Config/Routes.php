@@ -96,6 +96,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('', 'BillingController::index', ['as' => 'billing.index']);
         $routes->post('service-case/(:num)/prepare', 'BillingController::prepare/$1', ['as' => 'billing.prepare']);
         $routes->get('(:num)', 'BillingController::show/$1', ['as' => 'billing.show']);
+        $routes->post('(:num)/receiver', 'BillingController::updateReceiver/$1', ['as' => 'billing.receiver.update']);
         $routes->post('(:num)/items/(:num)/tax', 'BillingController::updateItemTax/$1/$2', ['as' => 'billing.items.tax.update']);
     });
 
