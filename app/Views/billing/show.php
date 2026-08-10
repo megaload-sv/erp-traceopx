@@ -6,6 +6,7 @@
 
 <?php
 $receiverValid = ($dteDocument['receiver_validation_status'] ?? 'pending') === 'valid';
+$receiverModified = (bool)($receiverMeta['is_modified'] ?? false);
 $docCode = (string)($dteDocument['document_code'] ?? '');
 $activities = $receiverCatalogs['activities'] ?? [];
 $departments = $receiverCatalogs['departments'] ?? [];
@@ -65,60 +66,102 @@ $receiverMunicipalityCode = (string) old('receiver_municipality_code', (string)(
     </div>
 </section>
 
-<section id="receiver" class="rounded-2xl border <?= $receiverValid?'border-emerald-200':'border-amber-200' ?> bg-white shadow-sm">
-    <div class="border-b border-slate-200 p-6">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div><p class="text-xs font-semibold uppercase tracking-[.18em] text-violet-600">Receptor Fiscal</p><h3 class="mt-2 text-xl font-bold">Snapshot del receptor</h3><p class="mt-2 text-sm text-slate-500">Se inicializa desde Clientes, pero pertenece al DTE y puede completarse antes de emitir.</p></div>
-            <span class="rounded-full px-3 py-1 text-xs font-bold <?= $receiverValid?'bg-emerald-100 text-emerald-800':'bg-amber-100 text-amber-800' ?>"><?= $receiverValid?'Validado':'Datos pendientes' ?></span>
+<section id="receiver" class="overflow-hidden rounded-2xl border <?= $receiverValid?'border-emerald-200':'border-amber-200' ?> bg-white shadow-sm">
+    <div class="p-6">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                    <p class="text-xs font-semibold uppercase tracking-[.18em] text-violet-600">Receptor Fiscal</p>
+                    <span class="rounded-full px-2.5 py-1 text-xs font-bold <?= $receiverValid?'bg-emerald-100 text-emerald-800':'bg-amber-100 text-amber-800' ?>"><?= $receiverValid?'Validado':'Requiere revisión' ?></span>
+                    <?php if($receiverModified): ?>
+                        <span class="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-800">Snapshot modificado</span>
+                    <?php else: ?>
+                        <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">Heredado del Cliente</span>
+                    <?php endif ?>
+                </div>
+                <h3 class="mt-3 text-xl font-bold text-slate-950"><?= esc($dteDocument['receiver_name_snapshot'] ?: 'Receptor sin nombre') ?></h3>
+                <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
+                    <?php if(!empty($dteDocument['receiver_document_number'])): ?><span>Doc. <?= esc($dteDocument['receiver_document_number']) ?></span><?php endif ?>
+                    <?php if(!empty($dteDocument['receiver_nrc'])): ?><span>NRC <?= esc($dteDocument['receiver_nrc']) ?></span><?php endif ?>
+                    <?php if(!empty($dteDocument['receiver_activity_code'])): ?><span><?= esc($dteDocument['receiver_activity_code']) ?> · <?= esc($dteDocument['receiver_activity_description'] ?? '') ?></span><?php endif ?>
+                </div>
+                <?php if($docCode !== 'FEX'): ?>
+                    <p class="mt-2 text-sm text-slate-500"><?= esc(trim(($dteDocument['receiver_municipality_code'] ?? '') . (($dteDocument['receiver_department_code'] ?? '') ? ' · ' . $dteDocument['receiver_department_code'] : '')) ?: 'Ubicación fiscal pendiente') ?></p>
+                <?php else: ?>
+                    <p class="mt-2 text-sm text-slate-500"><?= esc($dteDocument['receiver_country_name'] ?: 'País pendiente') ?></p>
+                <?php endif ?>
+                <?php if($receiverModified): ?>
+                    <p class="mt-3 text-xs font-semibold text-violet-700"><?= (int)($receiverMeta['difference_count'] ?? 0) ?> dato(s) del snapshot difieren actualmente del maestro de Clientes.</p>
+                <?php endif ?>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <?php if($receiverModified && ($dteDocument['status'] ?? '') === 'draft'): ?>
+                    <form method="post" action="<?= route_to('billing.receiver.restore',(int)$billingCase['id']) ?>" data-processing-message="Restaurando receptor desde Cliente…" onsubmit="return confirm('¿Restaurar el receptor con los datos fiscales actuales del Cliente? Se perderán las modificaciones realizadas solo para este DTE.');">
+                        <?= csrf_field() ?>
+                        <button class="rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-bold text-violet-700">Restaurar desde Cliente</button>
+                    </form>
+                <?php endif ?>
+                <button type="button" id="receiver_toggle" class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700" aria-expanded="<?= $receiverValid?'false':'true' ?>">
+                    <?= $receiverValid?'Ver / modificar ▾':'Completar información ▴' ?>
+                </button>
+            </div>
         </div>
-        <?php if($receiverIssues): ?><div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4"><p class="font-bold text-amber-900">Validaciones pendientes</p><ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800"><?php foreach($receiverIssues as $issue): ?><li><?= esc($issue) ?></li><?php endforeach ?></ul></div><?php endif ?>
+
+        <?php if($receiverIssues): ?>
+            <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4"><p class="font-bold text-amber-900">Validaciones pendientes</p><ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800"><?php foreach($receiverIssues as $issue): ?><li><?= esc($issue) ?></li><?php endforeach ?></ul></div>
+        <?php endif ?>
     </div>
 
-    <form method="post" action="<?= route_to('billing.receiver.update',(int)$billingCase['id']) ?>" class="grid gap-4 p-6 md:grid-cols-2" data-processing-message="Actualizando receptor fiscal…">
-        <?= csrf_field() ?>
-        <label class="md:col-span-2 text-sm font-semibold text-slate-700">Nombre / razón social<input name="receiver_name" value="<?= esc(old('receiver_name',$dteDocument['receiver_name_snapshot']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
-        <label class="md:col-span-2 text-sm font-semibold text-slate-700">Nombre comercial<input name="receiver_trade_name" value="<?= esc(old('receiver_trade_name',$dteDocument['receiver_trade_name_snapshot']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
+    <div id="receiver_editor" class="border-t border-slate-200 <?= $receiverValid?'hidden':'' ?>">
+        <div class="bg-slate-50 px-6 py-4 text-sm text-slate-600">
+            Los datos se heredaron inicialmente del Cliente. Los cambios de esta sección afectan únicamente este DTE y no modifican el maestro de Clientes.
+        </div>
+        <form method="post" action="<?= route_to('billing.receiver.update',(int)$billingCase['id']) ?>" class="grid gap-4 p-6 md:grid-cols-2" data-processing-message="Actualizando receptor fiscal…">
+            <?= csrf_field() ?>
+            <label class="md:col-span-2 text-sm font-semibold text-slate-700">Nombre / razón social<input name="receiver_name" value="<?= esc(old('receiver_name',$dteDocument['receiver_name_snapshot']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
+            <label class="md:col-span-2 text-sm font-semibold text-slate-700">Nombre comercial<input name="receiver_trade_name" value="<?= esc(old('receiver_trade_name',$dteDocument['receiver_trade_name_snapshot']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
 
-        <label class="text-sm font-semibold text-slate-700">Tipo de documento
-            <select id="receiver_document_type" name="receiver_document_type" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal">
-                <option value="" <?= $receiverDocumentType===''?'selected':'' ?>>Sin definir</option>
-                <?php foreach(['36'=>'36 · NIT','13'=>'13 · DUI','02'=>'02 · Carné de residente','03'=>'03 · Pasaporte','37'=>'37 · Otro'] as $value=>$label): ?>
-                    <option value="<?= esc($value) ?>" <?= $receiverDocumentType===(string)$value?'selected':'' ?>><?= esc($label) ?></option>
-                <?php endforeach ?>
-            </select>
-        </label>
-        <label class="text-sm font-semibold text-slate-700">Número de documento<input name="receiver_document_number" value="<?= esc(old('receiver_document_number',$dteDocument['receiver_document_number']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-mono font-normal"></label>
-        <?php if($docCode==='CCF' || $docCode==='FCF'): ?><label class="text-sm font-semibold text-slate-700">NRC<input name="receiver_nrc" value="<?= esc(old('receiver_nrc',$dteDocument['receiver_nrc']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-mono font-normal"></label><?php else: ?><input type="hidden" name="receiver_nrc" value="<?= esc($dteDocument['receiver_nrc']??'') ?>"><?php endif ?>
+            <label class="text-sm font-semibold text-slate-700">Tipo de documento
+                <select id="receiver_document_type" name="receiver_document_type" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal">
+                    <option value="" <?= $receiverDocumentType===''?'selected':'' ?>>Sin definir</option>
+                    <?php foreach(['36'=>'36 · NIT','13'=>'13 · DUI','02'=>'02 · Carné de residente','03'=>'03 · Pasaporte','37'=>'37 · Otro'] as $value=>$label): ?>
+                        <option value="<?= esc($value) ?>" <?= $receiverDocumentType===(string)$value?'selected':'' ?>><?= esc($label) ?></option>
+                    <?php endforeach ?>
+                </select>
+            </label>
+            <label class="text-sm font-semibold text-slate-700">Número de documento<input name="receiver_document_number" value="<?= esc(old('receiver_document_number',$dteDocument['receiver_document_number']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-mono font-normal"></label>
+            <?php if($docCode==='CCF' || $docCode==='FCF'): ?><label class="text-sm font-semibold text-slate-700">NRC<input name="receiver_nrc" value="<?= esc(old('receiver_nrc',$dteDocument['receiver_nrc']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-mono font-normal"></label><?php else: ?><input type="hidden" name="receiver_nrc" value="<?= esc($dteDocument['receiver_nrc']??'') ?>"><?php endif ?>
 
-        <?php if($docCode==='FEX'): ?>
-            <label class="text-sm font-semibold text-slate-700">Tipo de persona<select name="receiver_person_type" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal"><option value="">Seleccionar</option><option value="1" <?= (int)($dteDocument['receiver_person_type']??0)===1?'selected':'' ?>>1 · Persona natural</option><option value="2" <?= (int)($dteDocument['receiver_person_type']??0)===2?'selected':'' ?>>2 · Persona jurídica</option></select></label>
-            <label class="text-sm font-semibold text-slate-700">Código país<input name="receiver_country_code" value="<?= esc(old('receiver_country_code',$dteDocument['receiver_country_code']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-mono font-normal"></label>
-            <label class="md:col-span-2 text-sm font-semibold text-slate-700">Nombre país<input name="receiver_country_name" value="<?= esc(old('receiver_country_name',$dteDocument['receiver_country_name']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
-        <?php else: ?>
-            <input type="hidden" name="receiver_person_type" value="<?= esc((string)($dteDocument['receiver_person_type']??'')) ?>">
-            <input type="hidden" name="receiver_country_code" value="<?= esc($dteDocument['receiver_country_code']??'') ?>">
-            <input type="hidden" name="receiver_country_name" value="<?= esc($dteDocument['receiver_country_name']??'') ?>">
-            <label class="text-sm font-semibold text-slate-700">Departamento<select id="receiver_department_code" name="receiver_department_code" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal"><option value="">Seleccionar</option><?php foreach($departments as $row): ?><option value="<?= esc($row['code']) ?>" <?= $receiverDepartmentCode===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
-            <label class="text-sm font-semibold text-slate-700">Municipio<select id="receiver_municipality_code" name="receiver_municipality_code" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal"><option value="">Seleccionar</option><?php foreach($municipalities as $row): ?><option value="<?= esc($row['code']) ?>" data-department="<?= esc($row['parent_code']) ?>" <?= $receiverMunicipalityCode===(string)$row['code'] && $receiverDepartmentCode===(string)$row['parent_code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
-        <?php endif ?>
+            <?php if($docCode==='FEX'): ?>
+                <label class="text-sm font-semibold text-slate-700">Tipo de persona<select name="receiver_person_type" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal"><option value="">Seleccionar</option><option value="1" <?= (int)($dteDocument['receiver_person_type']??0)===1?'selected':'' ?>>1 · Persona natural</option><option value="2" <?= (int)($dteDocument['receiver_person_type']??0)===2?'selected':'' ?>>2 · Persona jurídica</option></select></label>
+                <label class="text-sm font-semibold text-slate-700">Código país<input name="receiver_country_code" value="<?= esc(old('receiver_country_code',$dteDocument['receiver_country_code']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-mono font-normal"></label>
+                <label class="md:col-span-2 text-sm font-semibold text-slate-700">Nombre país<input name="receiver_country_name" value="<?= esc(old('receiver_country_name',$dteDocument['receiver_country_name']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
+            <?php else: ?>
+                <input type="hidden" name="receiver_person_type" value="<?= esc((string)($dteDocument['receiver_person_type']??'')) ?>">
+                <input type="hidden" name="receiver_country_code" value="<?= esc($dteDocument['receiver_country_code']??'') ?>">
+                <input type="hidden" name="receiver_country_name" value="<?= esc($dteDocument['receiver_country_name']??'') ?>">
+                <label class="text-sm font-semibold text-slate-700">Departamento<select id="receiver_department_code" name="receiver_department_code" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal"><option value="">Seleccionar</option><?php foreach($departments as $row): ?><option value="<?= esc($row['code']) ?>" <?= $receiverDepartmentCode===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
+                <label class="text-sm font-semibold text-slate-700">Municipio<select id="receiver_municipality_code" name="receiver_municipality_code" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal"><option value="">Seleccionar</option><?php foreach($municipalities as $row): ?><option value="<?= esc($row['code']) ?>" data-department="<?= esc($row['parent_code']) ?>" <?= $receiverMunicipalityCode===(string)$row['code'] && $receiverDepartmentCode===(string)$row['parent_code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
+            <?php endif ?>
 
-        <label class="md:col-span-2 text-sm font-semibold text-slate-700">Actividad económica
-            <select id="receiver_activity_code" name="receiver_activity_code" class="mt-2 w-full" data-placeholder="Seleccionar actividad">
-                <option value="">Sin asignar</option>
-                <?php foreach($activities as $row): ?>
-                    <option value="<?= esc($row['code']) ?>" data-description="<?= esc($row['name']) ?>" <?= $receiverActivityCode===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option>
-                <?php endforeach ?>
-            </select>
-        </label>
-        <label class="md:col-span-2 text-sm font-semibold text-slate-700">Descripción actividad
-            <input id="receiver_activity_description" name="receiver_activity_description" value="<?= esc($receiverActivityDescription) ?>" readonly class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-normal text-slate-600">
-            <span class="mt-1 block text-xs font-normal text-slate-400">Se completa automáticamente desde CAT-019.</span>
-        </label>
-        <label class="text-sm font-semibold text-slate-700">Teléfono<input name="receiver_phone" value="<?= esc(old('receiver_phone',$dteDocument['receiver_phone']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
-        <label class="text-sm font-semibold text-slate-700">Correo<input name="receiver_email" type="email" value="<?= esc(old('receiver_email',$dteDocument['receiver_email']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
-        <label class="md:col-span-2 text-sm font-semibold text-slate-700"><?= $docCode==='FEX'?'Complemento de dirección':'Dirección fiscal' ?><textarea name="receiver_address" rows="3" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"><?= esc(old('receiver_address',$dteDocument['receiver_address']??'')) ?></textarea></label>
-        <div class="md:col-span-2 flex justify-end"><button class="rounded-xl bg-slate-950 px-5 py-3 font-bold text-white">Guardar y validar receptor</button></div>
-    </form>
+            <label class="md:col-span-2 text-sm font-semibold text-slate-700">Actividad económica
+                <select id="receiver_activity_code" name="receiver_activity_code" class="mt-2 w-full" data-placeholder="Seleccionar actividad">
+                    <option value="">Sin asignar</option>
+                    <?php foreach($activities as $row): ?>
+                        <option value="<?= esc($row['code']) ?>" data-description="<?= esc($row['name']) ?>" <?= $receiverActivityCode===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option>
+                    <?php endforeach ?>
+                </select>
+            </label>
+            <label class="md:col-span-2 text-sm font-semibold text-slate-700">Descripción actividad
+                <input id="receiver_activity_description" name="receiver_activity_description" value="<?= esc($receiverActivityDescription) ?>" readonly class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-normal text-slate-600">
+                <span class="mt-1 block text-xs font-normal text-slate-400">Se completa automáticamente desde CAT-019.</span>
+            </label>
+            <label class="text-sm font-semibold text-slate-700">Teléfono<input name="receiver_phone" value="<?= esc(old('receiver_phone',$dteDocument['receiver_phone']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
+            <label class="text-sm font-semibold text-slate-700">Correo<input name="receiver_email" type="email" value="<?= esc(old('receiver_email',$dteDocument['receiver_email']??'')) ?>" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"></label>
+            <label class="md:col-span-2 text-sm font-semibold text-slate-700"><?= $docCode==='FEX'?'Complemento de dirección':'Dirección fiscal' ?><textarea name="receiver_address" rows="3" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"><?= esc(old('receiver_address',$dteDocument['receiver_address']??'')) ?></textarea></label>
+            <div class="md:col-span-2 flex justify-end"><button class="rounded-xl bg-slate-950 px-5 py-3 font-bold text-white">Guardar y validar receptor</button></div>
+        </form>
+    </div>
 </section>
 
 <section id="dte-items" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -151,15 +194,24 @@ $receiverMunicipalityCode = (string) old('receiver_municipality_code', (string)(
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const receiverToggle = document.getElementById('receiver_toggle');
+    const receiverEditor = document.getElementById('receiver_editor');
+    if (receiverToggle && receiverEditor) {
+        receiverToggle.addEventListener('click', function () {
+            const isHidden = receiverEditor.classList.contains('hidden');
+            receiverEditor.classList.toggle('hidden', !isHidden);
+            receiverToggle.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+            receiverToggle.textContent = isHidden ? 'Contraer ▴' : 'Ver / modificar ▾';
+        });
+    }
+
     const activity = document.getElementById('receiver_activity_code');
     const activityDescription = document.getElementById('receiver_activity_description');
-
     function syncActivityDescription() {
         if (!activity || !activityDescription) return;
         const option = activity.options[activity.selectedIndex];
         activityDescription.value = option && option.value ? (option.dataset.description || '') : '';
     }
-
     if (activity) {
         activity.addEventListener('change', syncActivityDescription);
         syncActivityDescription();
@@ -179,7 +231,6 @@ document.addEventListener('DOMContentLoaded', function () {
     function refreshMunicipalities(selectedValue = '') {
         const selectedDepartment = department.value;
         municipality.innerHTML = '<option value="">' + (selectedDepartment ? 'Seleccionar municipio' : 'Seleccione primero un departamento') + '</option>';
-
         municipalityOptions.forEach(option => {
             if (!option.value || option.department !== selectedDepartment) return;
             const node = document.createElement('option');
@@ -189,15 +240,11 @@ document.addEventListener('DOMContentLoaded', function () {
             if (selectedValue && option.value === selectedValue) node.selected = true;
             municipality.appendChild(node);
         });
-
         municipality.disabled = !selectedDepartment;
         if (selectedValue) municipality.value = selectedValue;
     }
 
-    department.addEventListener('change', function () {
-        refreshMunicipalities('');
-    });
-
+    department.addEventListener('change', function () { refreshMunicipalities(''); });
     refreshMunicipalities(persistedMunicipality);
 });
 </script>
