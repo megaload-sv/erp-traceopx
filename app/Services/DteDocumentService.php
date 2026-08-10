@@ -20,7 +20,7 @@ class DteDocumentService
         if ($existing !== null) {
             if (empty($existing['generation_code'])) {
                 $generationCode = $this->generationCode();
-                $db->table('dte_documents')->where('id', (int) $existing['id'])->update([
+                $db->table('dte_documents')->where('id', (int)$existing['id'])->update([
                     'generation_code' => $generationCode,
                     'modify_user' => $this->actor(),
                     'modify_date' => date('Y-m-d H:i:s'),
@@ -36,39 +36,35 @@ class DteDocumentService
             ->where('bc.id', $billingCaseId)
             ->where('bc.delete_date', null)
             ->get()->getRowArray();
-        if ($source === null) {
-            throw new RuntimeException('Preparación de facturación no encontrada.');
-        }
+        if ($source === null) throw new RuntimeException('Preparación de facturación no encontrada.');
 
-        $dteCode = self::BILLING_TO_DTE[(string) $source['document_type']] ?? null;
-        if ($dteCode === null) {
-            throw new RuntimeException('El tipo de documento de esta preparación aún no está habilitado para generación automática desde cotización.');
-        }
+        $dteCode = self::BILLING_TO_DTE[(string)$source['document_type']] ?? null;
+        if ($dteCode === null) throw new RuntimeException('El tipo de documento aún no está habilitado para generación automática desde cotización.');
 
         $type = $db->table('dte_document_types')->where('code', $dteCode)->where('status', 1)->get()->getRowArray();
-        if ($type === null) {
-            throw new RuntimeException('No se encontró la configuración del tipo DTE ' . $dteCode . '.');
-        }
+        if ($type === null) throw new RuntimeException('No se encontró la configuración del tipo DTE ' . $dteCode . '.');
 
         $now = date('Y-m-d H:i:s');
-        $total = round((float) $source['invoiceable_amount'], 2);
+        $total = round((float)$source['invoiceable_amount'], 2);
+        $environment = $this->setting('emission', 'environment') ?: '00';
+
         $db->transBegin();
         try {
             $db->table('dte_documents')->insert([
                 'uuid' => $this->uuidV4(),
                 'billing_case_id' => $billingCaseId,
-                'service_case_id' => ! empty($source['service_case_id']) ? (int) $source['service_case_id'] : null,
-                'quotation_id' => ! empty($source['quotation_id']) ? (int) $source['quotation_id'] : null,
-                'customer_id' => (int) $source['customer_id'],
-                'document_type_id' => (int) $type['id'],
-                'origin_type' => (string) ($source['origin_type'] ?? 'quotation'),
+                'service_case_id' => !empty($source['service_case_id']) ? (int)$source['service_case_id'] : null,
+                'quotation_id' => !empty($source['quotation_id']) ? (int)$source['quotation_id'] : null,
+                'customer_id' => (int)$source['customer_id'],
+                'document_type_id' => (int)$type['id'],
+                'origin_type' => (string)($source['origin_type'] ?? 'quotation'),
                 'status' => 'draft',
-                'schema_version' => (int) $type['schema_version'],
-                'environment' => '00',
+                'schema_version' => (int)$type['schema_version'],
+                'environment' => $environment,
                 'generation_model' => 1,
                 'operation_type' => 1,
                 'generation_code' => $this->generationCode(),
-                'currency_code' => (string) ($source['currency_code'] ?: 'USD'),
+                'currency_code' => (string)($source['currency_code'] ?: 'USD'),
                 'receiver_name_snapshot' => $source['business_name'] ?? null,
                 'receiver_trade_name_snapshot' => $source['trade_name'] ?? null,
                 'receiver_email' => $source['email'] ?? null,
@@ -80,22 +76,25 @@ class DteDocumentService
                 'entry_user' => $this->actor(),
                 'entry_date' => $now,
             ]);
-            $documentId = (int) $db->insertID();
+            $documentId = (int)$db->insertID();
 
-            $this->copyQuotationItems($documentId, ! empty($source['quotation_id']) ? (int) $source['quotation_id'] : null, $now, $dteCode);
-            $this->recalculateDocument($documentId);
+            $this->copyQuotationItems($documentId, !empty($source['quotation_id']) ? (int)$source['quotation_id'] : null, $now, $dteCode);
+            (new DteTaxCalculationService())->recalculate($documentId);
+            (new DteReceiverService())->ensureSnapshot($documentId);
 
-            $db->table('service_case_events')->insert([
-                'service_case_id' => (int) $source['service_case_id'],
-                'event_code' => 'dte.draft_created',
-                'title' => 'Documento fiscal preparado',
-                'description' => $type['name'] . ' · Se creó el snapshot fiscal independiente de la cotización.',
-                'entity_type' => 'dte_document',
-                'entity_id' => $documentId,
-                'occurred_at' => $now,
-                'entry_user' => $this->actor(),
-                'entry_date' => $now,
-            ]);
+            if (!empty($source['service_case_id'])) {
+                $db->table('service_case_events')->insert([
+                    'service_case_id' => (int)$source['service_case_id'],
+                    'event_code' => 'dte.draft_created',
+                    'title' => 'Documento fiscal preparado',
+                    'description' => $type['name'] . ' · Se creó el snapshot fiscal independiente de la cotización.',
+                    'entity_type' => 'dte_document',
+                    'entity_id' => $documentId,
+                    'occurred_at' => $now,
+                    'entry_user' => $this->actor(),
+                    'entry_date' => $now,
+                ]);
+            }
 
             $db->transCommit();
             return $db->table('dte_documents')->where('id', $documentId)->get()->getRowArray();
@@ -109,81 +108,67 @@ class DteDocumentService
     {
         $document = $this->ensureForBillingCase($billingCaseId);
         $db = db_connect();
+
+        if (($document['status'] ?? null) === 'draft') {
+            $this->syncMhUnitsForDraft((int)$document['id']);
+            (new DteTaxCalculationService())->recalculate((int)$document['id']);
+            (new DteReceiverService())->ensureSnapshot((int)$document['id']);
+        }
+
         $document = $db->table('dte_documents d')
             ->select('d.*, dt.code AS document_code, dt.mh_code, dt.name AS document_name, dt.schema_file')
             ->join('dte_document_types dt', 'dt.id = d.document_type_id')
-            ->where('d.id', (int) $document['id'])
+            ->where('d.id', (int)$document['id'])
             ->get()->getRowArray();
 
-        if (($document['status'] ?? null) === 'draft') {
-            $this->syncMhUnitsForDraft((int) $document['id']);
-            $this->recalculateDocument((int) $document['id']);
-            $document = $db->table('dte_documents d')
-                ->select('d.*, dt.code AS document_code, dt.mh_code, dt.name AS document_name, dt.schema_file')
-                ->join('dte_document_types dt', 'dt.id = d.document_type_id')
-                ->where('d.id', (int) $document['id'])
-                ->get()->getRowArray();
-        }
-
+        $receiver = new DteReceiverService();
         return [
             'document' => $document,
-            'items' => $db->table('dte_document_items')->where('dte_document_id', (int) $document['id'])->orderBy('sequence')->get()->getResultArray(),
-            'taxCatalog' => $db->table('mh_catalog_values')
-                ->where('catalog_code', 'CAT-015')->where('status', 1)
-                ->orderBy('display_order')->get()->getResultArray(),
+            'items' => $db->table('dte_document_items')->where('dte_document_id', (int)$document['id'])->orderBy('sequence')->get()->getResultArray(),
+            'taxCatalog' => $db->table('mh_catalog_values')->where('catalog_code', 'CAT-015')->where('status', 1)->orderBy('display_order')->get()->getResultArray(),
+            'receiverCatalogs' => $receiver->catalogs(),
+            'receiverIssues' => json_decode((string)($document['receiver_validation_issues_json'] ?? '[]'), true) ?: [],
         ];
     }
 
     public function updateItemTaxClassification(int $billingCaseId, int $itemId, string $classification, ?string $taxCode): void
     {
-        if (! in_array($classification, ['taxed', 'exempt', 'non_subject'], true)) {
+        if (!in_array($classification, ['taxed', 'exempt', 'non_subject'], true)) {
             throw new RuntimeException('La clasificación fiscal del ítem no es válida.');
         }
 
         $db = db_connect();
-        $document = $db->table('dte_documents')->where('billing_case_id', $billingCaseId)->get()->getRowArray();
-        if ($document === null || (string) $document['status'] !== 'draft') {
+        $document = $db->table('dte_documents d')
+            ->select('d.*, dt.code AS document_code')
+            ->join('dte_document_types dt', 'dt.id = d.document_type_id')
+            ->where('d.billing_case_id', $billingCaseId)->get()->getRowArray();
+        if ($document === null || (string)$document['status'] !== 'draft') {
             throw new RuntimeException('Solo se puede modificar la clasificación fiscal de un DTE en borrador.');
         }
 
-        $item = $db->table('dte_document_items')
-            ->where('id', $itemId)->where('dte_document_id', (int) $document['id'])
-            ->get()->getRowArray();
-        if ($item === null) {
-            throw new RuntimeException('Ítem fiscal no encontrado.');
-        }
+        $item = $db->table('dte_document_items')->where('id', $itemId)->where('dte_document_id', (int)$document['id'])->get()->getRowArray();
+        if ($item === null) throw new RuntimeException('Ítem fiscal no encontrado.');
 
         $taxCode = $taxCode !== null ? strtoupper(trim($taxCode)) : null;
         if ($classification !== 'taxed') {
             $taxCode = null;
-        } elseif ($taxCode !== null && $taxCode !== '') {
-            $validTax = $db->table('mh_catalog_values')
-                ->where('catalog_code', 'CAT-015')->where('code', $taxCode)->where('status', 1)
-                ->countAllResults() > 0;
-            if (! $validTax) {
-                throw new RuntimeException('El tributo CAT-015 seleccionado no es válido.');
-            }
         } else {
-            $taxCode = null;
+            if ((string)$document['document_code'] === 'FEX') $taxCode = 'C3';
+            if ($taxCode === null || $taxCode === '') $taxCode = (string)$document['document_code'] === 'FEX' ? 'C3' : '20';
+            $validTax = $db->table('mh_catalog_values')->where('catalog_code', 'CAT-015')->where('code', $taxCode)->where('status', 1)->countAllResults() > 0;
+            if (!$validTax) throw new RuntimeException('El tributo CAT-015 seleccionado no es válido.');
         }
-
-        $base = round(((float) $item['quantity'] * (float) $item['unit_price']) - (float) $item['discount_amount'], 8);
-        $values = [
-            'fiscal_classification' => $classification,
-            'non_subject_sale' => $classification === 'non_subject' ? $base : 0,
-            'exempt_sale' => $classification === 'exempt' ? $base : 0,
-            'taxed_sale' => $classification === 'taxed' ? $base : 0,
-            'tax_codes_json' => $taxCode !== null ? json_encode([$taxCode], JSON_UNESCAPED_UNICODE) : null,
-            'iva_item' => 0,
-            'line_total' => round($base, 2),
-            'modify_user' => $this->actor(),
-            'modify_date' => date('Y-m-d H:i:s'),
-        ];
 
         $db->transBegin();
         try {
-            $db->table('dte_document_items')->where('id', $itemId)->update($values);
-            $this->recalculateDocument((int) $document['id']);
+            $db->table('dte_document_items')->where('id', $itemId)->update([
+                'fiscal_classification' => $classification,
+                'tax_codes_json' => $taxCode !== null ? json_encode([$taxCode], JSON_UNESCAPED_UNICODE) : null,
+                'modify_user' => $this->actor(),
+                'modify_date' => date('Y-m-d H:i:s'),
+            ]);
+            (new DteTaxCalculationService())->recalculate((int)$document['id']);
+            (new DteReceiverService())->ensureSnapshot((int)$document['id']);
             $db->transCommit();
         } catch (Throwable $e) {
             $db->transRollback();
@@ -194,7 +179,6 @@ class DteDocumentService
     private function copyQuotationItems(int $documentId, ?int $quotationId, string $now, string $dteCode): void
     {
         if ($quotationId === null) return;
-
         $db = db_connect();
         $items = $db->table('quotation_items qi')
             ->select('qi.*, ci.code AS commercial_item_code, cu.name AS unit_name, cu.symbol AS unit_symbol, mum.code AS mh_unit_code, mum.name AS mh_unit_name')
@@ -207,23 +191,23 @@ class DteDocumentService
         $defaultTax = $dteCode === 'FEX' ? 'C3' : '20';
         $sequence = 1;
         foreach ($items as $item) {
-            $lineTotal = round((float) $item['quantity'] * (float) $item['unit_price'], 8);
+            $lineTotal = round((float)$item['quantity'] * (float)$item['unit_price'], 8);
             $db->table('dte_document_items')->insert([
                 'dte_document_id' => $documentId,
-                'quotation_item_id' => (int) $item['id'],
-                'commercial_item_id' => ! empty($item['commercial_item_id']) ? (int) $item['commercial_item_id'] : null,
+                'quotation_item_id' => (int)$item['id'],
+                'commercial_item_id' => !empty($item['commercial_item_id']) ? (int)$item['commercial_item_id'] : null,
                 'sequence' => $sequence++,
                 'item_type' => 2,
                 'fiscal_classification' => 'taxed',
                 'code' => $item['commercial_item_code'] ?? null,
-                'description' => trim((string) $item['description'] . (! empty($item['long_description']) ? "\n" . $item['long_description'] : '')),
-                'quantity' => (float) $item['quantity'],
-                'unit_id_snapshot' => ! empty($item['unit_id']) ? (int) $item['unit_id'] : null,
+                'description' => trim((string)$item['description'] . (!empty($item['long_description']) ? "\n" . $item['long_description'] : '')),
+                'quantity' => (float)$item['quantity'],
+                'unit_id_snapshot' => !empty($item['unit_id']) ? (int)$item['unit_id'] : null,
                 'unit_name_snapshot' => $item['unit_name'] ?? null,
                 'unit_symbol_snapshot' => $item['unit_symbol'] ?? null,
-                'mh_unit_code' => isset($item['mh_unit_code']) ? (int) $item['mh_unit_code'] : null,
+                'mh_unit_code' => isset($item['mh_unit_code']) ? (int)$item['mh_unit_code'] : null,
                 'mh_unit_name_snapshot' => $item['mh_unit_name'] ?? null,
-                'unit_price' => (float) $item['unit_price'],
+                'unit_price' => (float)$item['unit_price'],
                 'discount_amount' => 0,
                 'taxed_sale' => $lineTotal,
                 'tax_codes_json' => json_encode([$defaultTax]),
@@ -234,39 +218,6 @@ class DteDocumentService
         }
     }
 
-    private function recalculateDocument(int $documentId): void
-    {
-        $db = db_connect();
-        $row = $db->table('dte_document_items')
-            ->selectSum('non_subject_sale', 'non_subject_total')
-            ->selectSum('exempt_sale', 'exempt_total')
-            ->selectSum('taxed_sale', 'taxed_total')
-            ->selectSum('discount_amount', 'discount_total')
-            ->selectSum('iva_item', 'iva_total')
-            ->selectSum('line_total', 'operation_total')
-            ->where('dte_document_id', $documentId)->get()->getRowArray();
-
-        $nonSubject = round((float) ($row['non_subject_total'] ?? 0), 2);
-        $exempt = round((float) ($row['exempt_total'] ?? 0), 2);
-        $taxed = round((float) ($row['taxed_total'] ?? 0), 2);
-        $discount = round((float) ($row['discount_total'] ?? 0), 2);
-        $iva = round((float) ($row['iva_total'] ?? 0), 2);
-        $operation = round((float) ($row['operation_total'] ?? ($nonSubject + $exempt + $taxed)), 2);
-
-        $db->table('dte_documents')->where('id', $documentId)->update([
-            'subtotal' => round($nonSubject + $exempt + $taxed, 2),
-            'discount_total' => $discount,
-            'taxed_total' => $taxed,
-            'exempt_total' => $exempt,
-            'non_subject_total' => $nonSubject,
-            'iva_total' => $iva,
-            'operation_total' => $operation,
-            'amount_payable' => $operation,
-            'modify_user' => $this->actor(),
-            'modify_date' => date('Y-m-d H:i:s'),
-        ]);
-    }
-
     private function syncMhUnitsForDraft(int $documentId): void
     {
         $db = db_connect();
@@ -275,11 +226,10 @@ class DteDocumentService
             ->join('commercial_units cu', 'cu.id = di.unit_id_snapshot', 'left')
             ->join('mh_unit_measurements mum', 'mum.id = cu.mh_unit_measure_id AND mum.status = 1', 'left')
             ->where('di.dte_document_id', $documentId)->get()->getResultArray();
-
         foreach ($rows as $row) {
-            if ($row['mapped_code'] === null || (string) ($row['mh_unit_code'] ?? '') === (string) $row['mapped_code']) continue;
-            $db->table('dte_document_items')->where('id', (int) $row['id'])->update([
-                'mh_unit_code' => (int) $row['mapped_code'],
+            if ($row['mapped_code'] === null || (string)($row['mh_unit_code'] ?? '') === (string)$row['mapped_code']) continue;
+            $db->table('dte_document_items')->where('id', (int)$row['id'])->update([
+                'mh_unit_code' => (int)$row['mapped_code'],
                 'mh_unit_name_snapshot' => $row['mapped_name'] ?? null,
                 'modify_user' => $this->actor(),
                 'modify_date' => date('Y-m-d H:i:s'),
@@ -287,9 +237,15 @@ class DteDocumentService
         }
     }
 
+    private function setting(string $group, string $key): ?string
+    {
+        $row = db_connect()->table('dte_settings')->where('group_code', $group)->where('setting_key', $key)->where('status', 1)->get()->getRowArray();
+        return $row !== null ? (string)$row['setting_value'] : null;
+    }
+
     private function actor(): string
     {
-        return (string) (session('auth_user_email') ?: session('auth_user_name') ?: 'system');
+        return (string)(session('auth_user_email') ?: session('auth_user_name') ?: 'system');
     }
 
     private function generationCode(): string
