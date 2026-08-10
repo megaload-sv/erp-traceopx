@@ -44,12 +44,11 @@ class BillingPreparationService
             throw new RuntimeException('Preparación de facturación no encontrada.');
         }
 
-        $schedule = $db->table('billing_payment_schedule')
-            ->where('billing_case_id', $billingCaseId)
-            ->orderBy('sequence')
-            ->get()->getResultArray();
-
-        return ['billingCase' => $case, 'schedule' => $schedule, 'documentTypes' => self::DOCUMENT_TYPES];
+        return [
+            'billingCase' => $case,
+            'schedule' => $db->table('billing_payment_schedule')->where('billing_case_id', $billingCaseId)->orderBy('sequence')->get()->getResultArray(),
+            'documentTypes' => self::DOCUMENT_TYPES,
+        ];
     }
 
     public function createFromServiceCase(int $serviceCaseId, string $documentType, string $notes = ''): int
@@ -86,7 +85,7 @@ class BillingPreparationService
         $db->transBegin();
         try {
             $billingCaseId = $model->insert([
-                'uuid' => service('uuid')->uuid4()->toString(),
+                'uuid' => $this->uuidV4(),
                 'code' => $model->nextCode(),
                 'service_case_id' => $serviceCaseId,
                 'work_order_id' => (int) $source['work_order_id'],
@@ -146,10 +145,9 @@ class BillingPreparationService
         $now = date('Y-m-d H:i:s');
         if ($requiresAdvance && $advancePercentage > 0 && $advancePercentage < 100) {
             $advance = round($total * ($advancePercentage / 100), 2);
-            $balance = round($total - $advance, 2);
             $rows = [
                 ['sequence'=>1,'concept'=>'Anticipo comercial','installment_type'=>'advance','percentage'=>$advancePercentage,'amount'=>$advance,'trigger_event'=>'commercial_acceptance'],
-                ['sequence'=>2,'concept'=>'Saldo final','installment_type'=>'balance','percentage'=>100-$advancePercentage,'amount'=>$balance,'trigger_event'=>'work_order_completed'],
+                ['sequence'=>2,'concept'=>'Saldo final','installment_type'=>'balance','percentage'=>100-$advancePercentage,'amount'=>round($total-$advance,2),'trigger_event'=>'work_order_completed'],
             ];
         } elseif ($requiresAdvance && $advancePercentage >= 100) {
             $rows = [['sequence'=>1,'concept'=>'Pago anticipado','installment_type'=>'advance','percentage'=>100,'amount'=>$total,'trigger_event'=>'commercial_acceptance']];
@@ -159,6 +157,14 @@ class BillingPreparationService
         foreach ($rows as $row) {
             $db->table('billing_payment_schedule')->insert($row + ['billing_case_id'=>$billingCaseId,'status'=>'pending','entry_user'=>$this->actor(),'entry_date'=>$now]);
         }
+    }
+
+    private function uuidV4(): string
+    {
+        $data = random_bytes(16);
+        $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
+        $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
     private function actor(): string
