@@ -100,6 +100,16 @@ class ProcessEngineService
             );
         }
 
+        if ($workOrder !== null && $workOrder['status'] === 'closed') {
+            $this->completeMilestone(
+                $serviceCaseId,
+                'operational_closure_approved',
+                'work_order',
+                (int) $workOrder['id'],
+                'Cierre formal de la Orden de Trabajo aprobado.'
+            );
+        }
+
         $milestones = $db->table('service_case_milestones')
             ->where('service_case_id', $serviceCaseId)
             ->where('delete_date', null)
