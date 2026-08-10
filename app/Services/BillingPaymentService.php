@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use CodeIgniter\HTTP\Files\UploadedFile;
 use RuntimeException;
 use Throwable;
 
@@ -16,6 +17,17 @@ class BillingPaymentService
             ->join('billing_payment_schedule bps', 'bps.id = bp.payment_schedule_id', 'left')
             ->where('bp.billing_case_id', $billingCaseId)
             ->orderBy('bp.payment_date', 'DESC')->orderBy('bp.id', 'DESC')->get()->getResultArray();
+
+        $evidenceByPayment = [];
+        if ($db->tableExists('billing_payment_evidence')) {
+            foreach ($db->table('billing_payment_evidence')->where('billing_case_id', $billingCaseId)->where('delete_date', null)->orderBy('id', 'DESC')->get()->getResultArray() as $evidence) {
+                $evidenceByPayment[(int) $evidence['billing_payment_id']][] = $evidence;
+            }
+        }
+        foreach ($payments as &$payment) {
+            $payment['evidence'] = $evidenceByPayment[(int) $payment['id']] ?? [];
+        }
+        unset($payment);
 
         $schedule = $db->table('billing_payment_schedule')->where('billing_case_id', $billingCaseId)->orderBy('sequence')->get()->getResultArray();
         foreach ($schedule as &$row) {
@@ -63,7 +75,7 @@ class BillingPaymentService
         ];
     }
 
-    public function registerConfirmed(int $billingCaseId, array $input): int
+    public function registerConfirmed(int $billingCaseId, array $input, ?UploadedFile $receipt = null): int
     {
         $db = db_connect();
         $amount = round((float) ($input['amount'] ?? 0), 2);
@@ -73,6 +85,13 @@ class BillingPaymentService
         $methodRow = $this->catalogRow('CAT-017', $mhCode);
         if ($methodRow === null) throw new RuntimeException('Seleccione una forma de pago válida del CAT-017.');
         $method = (string) $methodRow['name'];
+
+        if ($mhCode === '05' && $receipt === null) {
+            throw new RuntimeException('Para transferencias o depósitos bancarios debe adjuntar el comprobante de pago.');
+        }
+        if ($receipt !== null && (! $receipt->isValid() || $receipt->hasMoved())) {
+            throw new RuntimeException('El comprobante de pago recibido no es válido.');
+        }
 
         $reference = trim((string) ($input['reference'] ?? ''));
         if (mb_strlen($reference) > 50) throw new RuntimeException('La referencia del pago no puede exceder 50 caracteres.');
@@ -85,7 +104,8 @@ class BillingPaymentService
         $paymentDate = date('Y-m-d H:i:s', $paymentTimestamp);
 
         $scheduleId = ! empty($input['payment_schedule_id']) ? (int) $input['payment_schedule_id'] : null;
-        $actor = $this->actor(); $now = date('Y-m-d H:i:s');
+        $actor = $this->actor();
+        $now = date('Y-m-d H:i:s');
         $db->transBegin();
         try {
             $case = $db->query('SELECT * FROM billing_cases WHERE id = ? AND delete_date IS NULL FOR UPDATE', [$billingCaseId])->getRowArray();
@@ -107,33 +127,76 @@ class BillingPaymentService
 
             $document = $db->table('dte_documents')->where('billing_case_id', $billingCaseId)->get()->getRowArray();
             $db->table('billing_payments')->insert([
-                'uuid' => strtoupper($this->uuidV4()), 'billing_case_id' => $billingCaseId,
-                'service_case_id' => (int) $case['service_case_id'], 'dte_document_id' => $document !== null ? (int) $document['id'] : null,
-                'payment_schedule_id' => $scheduleId, 'payment_method' => $method, 'mh_payment_code' => $mhCode,
-                'amount' => $amount, 'reference' => $reference !== '' ? $reference : null,
-                'electronic_payment_number' => $electronicNumber !== '' ? $electronicNumber : null, 'payment_date' => $paymentDate,
-                'status' => 'confirmed', 'notes' => trim((string) ($input['notes'] ?? '')) ?: null,
-                'confirmed_by' => $actor, 'confirmed_at' => $now, 'entry_user' => $actor, 'entry_date' => $now,
+                'uuid' => strtoupper($this->uuidV4()),
+                'billing_case_id' => $billingCaseId,
+                'service_case_id' => (int) $case['service_case_id'],
+                'dte_document_id' => $document !== null ? (int) $document['id'] : null,
+                'payment_schedule_id' => $scheduleId,
+                'payment_method' => $method,
+                'mh_payment_code' => $mhCode,
+                'amount' => $amount,
+                'reference' => $reference !== '' ? $reference : null,
+                'electronic_payment_number' => $electronicNumber !== '' ? $electronicNumber : null,
+                'payment_date' => $paymentDate,
+                'status' => 'confirmed',
+                'notes' => trim((string) ($input['notes'] ?? '')) ?: null,
+                'confirmed_by' => $actor,
+                'confirmed_at' => $now,
+                'entry_user' => $actor,
+                'entry_date' => $now,
             ]);
             $paymentId = (int) $db->insertID();
 
-            $paid = round($paidBefore + $amount, 2); $balance = max(0, round($target - $paid, 2));
-            $db->table('billing_cases')->where('id', $billingCaseId)->update(['invoiceable_amount'=>$target,'paid_amount'=>$paid,'balance_amount'=>$balance,'modify_user'=>$actor,'modify_date'=>$now]);
-            $db->table('service_case_financial_policies')->where('service_case_id', (int) $case['service_case_id'])->update(['confirmed_paid_amount'=>$paid,'modify_user'=>$actor,'modify_date'=>$now]);
+            if ($receipt !== null) {
+                (new BillingPaymentEvidenceService())->store($billingCaseId, $paymentId, $receipt);
+            }
+
+            $paid = round($paidBefore + $amount, 2);
+            $balance = max(0, round($target - $paid, 2));
+            $db->table('billing_cases')->where('id', $billingCaseId)->update([
+                'invoiceable_amount' => $target,
+                'paid_amount' => $paid,
+                'balance_amount' => $balance,
+                'modify_user' => $actor,
+                'modify_date' => $now,
+            ]);
+            $db->table('service_case_financial_policies')->where('service_case_id', (int) $case['service_case_id'])->update([
+                'confirmed_paid_amount' => $paid,
+                'modify_user' => $actor,
+                'modify_date' => $now,
+            ]);
             $this->refreshScheduleStatuses($billingCaseId, $now, $actor);
 
             $collectionStatus = $balance <= 0.009 ? 'paid' : ($paid > 0 ? 'partial' : 'pending');
-            $db->table('service_cases')->where('id', (int) $case['service_case_id'])->update(['collection_status'=>$collectionStatus,'modify_user'=>$actor,'modify_date'=>$now]);
+            $db->table('service_cases')->where('id', (int) $case['service_case_id'])->update([
+                'collection_status' => $collectionStatus,
+                'modify_user' => $actor,
+                'modify_date' => $now,
+            ]);
             $db->table('service_case_events')->insert([
-                'service_case_id'=>(int)$case['service_case_id'],'event_code'=>'payment.confirmed','title'=>'Pago confirmado',
-                'description'=>$method.' · $'.number_format($amount,2).($reference!==''?' · Ref. '.$reference:'').' · Saldo $'.number_format($balance,2),
-                'entity_type'=>'billing_payment','entity_id'=>$paymentId,'occurred_at'=>$now,'entry_user'=>$actor,'entry_date'=>$now,
+                'service_case_id' => (int) $case['service_case_id'],
+                'event_code' => 'payment.confirmed',
+                'title' => 'Pago confirmado',
+                'description' => $method . ' · $' . number_format($amount, 2)
+                    . ($reference !== '' ? ' · Ref. ' . $reference : '')
+                    . ($receipt !== null ? ' · Comprobante adjunto' : '')
+                    . ' · Saldo $' . number_format($balance, 2),
+                'entity_type' => 'billing_payment',
+                'entity_id' => $paymentId,
+                'occurred_at' => $now,
+                'entry_user' => $actor,
+                'entry_date' => $now,
             ]);
 
             $db->transCommit();
+
             (new FinancialPolicyService())->evaluateForServiceCase((int) $case['service_case_id']);
+            (new ProcessEngineService())->evaluate((int) $case['service_case_id']);
             return $paymentId;
-        } catch (Throwable $e) { $db->transRollback(); throw $e; }
+        } catch (Throwable $e) {
+            $db->transRollback();
+            throw $e;
+        }
     }
 
     public function confirmedTotalForServiceCase(int $serviceCaseId): float
@@ -172,9 +235,14 @@ class BillingPaymentService
         $schedules = $db->table('billing_payment_schedule')->where('billing_case_id', $billingCaseId)->get()->getResultArray();
         foreach ($schedules as $schedule) {
             $row = $db->table('billing_payments')->selectSum('amount', 'total')->where('billing_case_id', $billingCaseId)->where('payment_schedule_id', (int) $schedule['id'])->where('status', 'confirmed')->get()->getRowArray();
-            $applied = round((float) ($row['total'] ?? 0), 2); $expected = round((float) $schedule['amount'], 2);
+            $applied = round((float) ($row['total'] ?? 0), 2);
+            $expected = round((float) $schedule['amount'], 2);
             $status = $applied <= 0 ? 'pending' : ($applied + 0.009 >= $expected ? 'paid' : 'partial');
-            $db->table('billing_payment_schedule')->where('id', (int) $schedule['id'])->update(['status'=>$status,'modify_user'=>$actor,'modify_date'=>$now]);
+            $db->table('billing_payment_schedule')->where('id', (int) $schedule['id'])->update([
+                'status' => $status,
+                'modify_user' => $actor,
+                'modify_date' => $now,
+            ]);
         }
     }
 
@@ -182,8 +250,10 @@ class BillingPaymentService
     {
         $row = db_connect()->table('billing_cases bc')
             ->select('bc.*, sc.code AS service_case_code, c.business_name, q.code AS quotation_code, d.id AS dte_document_id, d.amount_payable AS dte_amount_payable')
-            ->join('service_cases sc', 'sc.id = bc.service_case_id')->join('customers c', 'c.id = bc.customer_id', 'left')
-            ->join('quotations q', 'q.id = bc.quotation_id', 'left')->join('dte_documents d', 'd.billing_case_id = bc.id', 'left')
+            ->join('service_cases sc', 'sc.id = bc.service_case_id')
+            ->join('customers c', 'c.id = bc.customer_id', 'left')
+            ->join('quotations q', 'q.id = bc.quotation_id', 'left')
+            ->join('dte_documents d', 'd.billing_case_id = bc.id', 'left')
             ->where('bc.id', $billingCaseId)->where('bc.delete_date', null)->get()->getRowArray();
         if ($row === null) throw new RuntimeException('Preparación de facturación no encontrada.');
         return $row;
@@ -200,6 +270,16 @@ class BillingPaymentService
         return db_connect()->table('mh_catalog_values')->where('catalog_code', $catalogCode)->where('code', $code)->where('status', 1)->get()->getRowArray();
     }
 
-    private function uuidV4(): string { $data=random_bytes(16);$data[6]=chr((ord($data[6])&0x0f)|0x40);$data[8]=chr((ord($data[8])&0x3f)|0x80);return vsprintf('%s%s-%s-%s-%s-%s%s%s',str_split(bin2hex($data),4)); }
-    private function actor(): string { return (string) (session('auth_user_email') ?: session('auth_user_name') ?: 'system'); }
+    private function uuidV4(): string
+    {
+        $data = random_bytes(16);
+        $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
+        $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+    }
+
+    private function actor(): string
+    {
+        return (string) (session('auth_user_email') ?: session('auth_user_name') ?: 'system');
+    }
 }
