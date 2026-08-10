@@ -55,14 +55,14 @@ class DtePreIssueService
         ));
         $ready = $builderBlocking === [] && $validation['valid'];
 
-        return $base + [
+        return array_replace($base, [
             'payload' => $payload,
             'json' => $json,
             'preissue_validation' => $validation,
             'payment_snapshot' => $paymentSnapshot,
             'structurally_ready' => $ready,
             'final_schema_ready' => $ready && ! empty($document['control_number']),
-        ];
+        ]);
     }
 
     private function actor(): string
