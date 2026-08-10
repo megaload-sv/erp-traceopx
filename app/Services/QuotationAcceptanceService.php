@@ -51,6 +51,7 @@ class QuotationAcceptanceService
         if ($existingAcceptance !== null) {
             $existingCase = $db->table('service_cases')->where('accepted_quotation_id', $quotationId)->where('delete_date', null)->get()->getRowArray();
             if ($existingCase !== null) {
+                (new FinancialPolicyService())->evaluateForServiceCase((int) $existingCase['id']);
                 return (int) $existingCase['id'];
             }
         }
@@ -105,8 +106,9 @@ class QuotationAcceptanceService
                 throw new RuntimeException('No fue posible confirmar la aceptación de la cotización.');
             }
 
+            (new FinancialPolicyService())->evaluateForServiceCase($caseId);
             (new ProcessEngineService())->evaluate($caseId);
-            (new ActivityService())->record('quotation', $quotationId, 'quotation.accepted', 'Cotización aceptada', 'Se creó el expediente de servicio asociado.');
+            (new ActivityService())->record('quotation', $quotationId, 'quotation.accepted', 'Cotización aceptada', 'Se creó el expediente de servicio asociado y se evaluó la política financiera.');
             return $caseId;
         } catch (Throwable $e) {
             $db->transRollback();
