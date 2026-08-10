@@ -96,6 +96,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('', 'BillingController::index', ['as' => 'billing.index']);
         $routes->post('service-case/(:num)/prepare', 'BillingController::prepare/$1', ['as' => 'billing.prepare']);
         $routes->get('(:num)/dte-json', 'BillingController::jsonPreview/$1', ['as' => 'billing.dte_json.preview']);
+        $routes->post('(:num)/dte-final-issue', 'BillingController::prepareFinalIssue/$1', ['as' => 'billing.dte.final_issue']);
         $routes->get('(:num)/payments', 'BillingPaymentsController::index/$1', ['as' => 'billing.payments.index']);
         $routes->post('(:num)/payments', 'BillingPaymentsController::store/$1', ['as' => 'billing.payments.store']);
         $routes->get('(:num)', 'BillingController::show/$1', ['as' => 'billing.show']);
