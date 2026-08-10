@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Services\BillingPreparationService;
 use App\Services\DteDocumentService;
+use App\Services\DteJsonBuilderService;
 use App\Services\DteReceiverService;
 use CodeIgniter\HTTP\RedirectResponse;
 use Throwable;
@@ -39,6 +40,7 @@ class BillingController extends BaseController
         $workspace = (new BillingPreparationService())->workspace($id);
         $dte = (new DteDocumentService())->workspace($id);
         $receiver = new DteReceiverService();
+        $jsonPreview = (new DteJsonBuilderService())->buildForBillingCase($id);
 
         $workspace['dteDocument'] = $dte['document'];
         $workspace['dteItems'] = $dte['items'];
@@ -46,11 +48,27 @@ class BillingController extends BaseController
         $workspace['receiverCatalogs'] = $dte['receiverCatalogs'];
         $workspace['receiverIssues'] = $dte['receiverIssues'];
         $workspace['receiverMeta'] = $receiver->snapshotMeta((int) $dte['document']['id']);
+        $workspace['dteJsonPreview'] = $jsonPreview;
         $workspace['taxSummary'] = ! empty($dte['document']['tax_summary_json'])
             ? (json_decode((string) $dte['document']['tax_summary_json'], true) ?: [])
             : [];
 
         return view('billing/show', ['title' => 'Facturación ' . $workspace['billingCase']['code']] + $workspace);
+    }
+
+    public function jsonPreview(int $billingCaseId)
+    {
+        try {
+            $preview = (new DteJsonBuilderService())->buildForBillingCase($billingCaseId);
+            return $this->response
+                ->setContentType('application/json')
+                ->setBody($preview['json']);
+        } catch (Throwable $e) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'error' => true,
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function updateItemTax(int $billingCaseId, int $itemId): RedirectResponse
