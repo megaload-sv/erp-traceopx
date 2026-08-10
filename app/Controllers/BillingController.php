@@ -4,7 +4,7 @@ namespace App\Controllers;
 
 use App\Services\BillingPreparationService;
 use App\Services\DteDocumentService;
-use App\Services\DteTaxCalculationService;
+use App\Services\DteReceiverService;
 use CodeIgniter\HTTP\RedirectResponse;
 use Throwable;
 
@@ -36,18 +36,16 @@ class BillingController extends BaseController
 
     public function show(int $id): string
     {
-        $preparation = new BillingPreparationService();
-        $workspace = $preparation->workspace($id);
-
-        if (($workspace['dteDocument']['status'] ?? null) === 'draft') {
-            (new DteTaxCalculationService())->recalculate((int) $workspace['dteDocument']['id']);
-            $workspace = $preparation->workspace($id);
-        }
-
+        $workspace = (new BillingPreparationService())->workspace($id);
         $dte = (new DteDocumentService())->workspace($id);
+
+        $workspace['dteDocument'] = $dte['document'];
+        $workspace['dteItems'] = $dte['items'];
         $workspace['taxCatalog'] = $dte['taxCatalog'];
-        $workspace['taxSummary'] = ! empty($workspace['dteDocument']['tax_summary_json'])
-            ? (json_decode((string) $workspace['dteDocument']['tax_summary_json'], true) ?: [])
+        $workspace['receiverCatalogs'] = $dte['receiverCatalogs'];
+        $workspace['receiverIssues'] = $dte['receiverIssues'];
+        $workspace['taxSummary'] = !empty($dte['document']['tax_summary_json'])
+            ? (json_decode((string)$dte['document']['tax_summary_json'], true) ?: [])
             : [];
 
         return view('billing/show', ['title' => 'Facturación ' . $workspace['billingCase']['code']] + $workspace);
@@ -56,16 +54,12 @@ class BillingController extends BaseController
     public function updateItemTax(int $billingCaseId, int $itemId): RedirectResponse
     {
         try {
-            $dteService = new DteDocumentService();
-            $dteService->updateItemTaxClassification(
+            (new DteDocumentService())->updateItemTaxClassification(
                 $billingCaseId,
                 $itemId,
-                trim((string) $this->request->getPost('fiscal_classification')),
-                trim((string) $this->request->getPost('tax_code')) ?: null
+                trim((string)$this->request->getPost('fiscal_classification')),
+                trim((string)$this->request->getPost('tax_code')) ?: null
             );
-
-            $dte = $dteService->workspace($billingCaseId);
-            (new DteTaxCalculationService())->recalculate((int) $dte['document']['id']);
 
             return redirect()->to(route_to('billing.show', $billingCaseId) . '#dte-items')
                 ->with('success', 'Clasificación fiscal actualizada y totales DTE recalculados.');
@@ -73,6 +67,21 @@ class BillingController extends BaseController
             log_message('error', 'Error actualizando clasificación fiscal DTE: {message}', ['message' => $e->getMessage()]);
             return redirect()->to(route_to('billing.show', $billingCaseId) . '#dte-items')
                 ->with('error', $e->getMessage());
+        }
+    }
+
+    public function updateReceiver(int $billingCaseId): RedirectResponse
+    {
+        try {
+            $result = (new DteReceiverService())->update($billingCaseId, $this->request->getPost());
+            $message = ($result['receiver_validation_status'] ?? null) === 'valid'
+                ? 'Receptor fiscal actualizado y validado correctamente.'
+                : 'Receptor fiscal actualizado. Aún existen datos pendientes para este tipo de DTE.';
+
+            return redirect()->to(route_to('billing.show', $billingCaseId) . '#receiver')->with('success', $message);
+        } catch (Throwable $e) {
+            log_message('error', 'Error actualizando receptor fiscal DTE: {message}', ['message' => $e->getMessage()]);
+            return redirect()->to(route_to('billing.show', $billingCaseId) . '#receiver')->withInput()->with('error', $e->getMessage());
         }
     }
 }
