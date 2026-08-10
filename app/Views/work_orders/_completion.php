@@ -2,7 +2,7 @@
 use App\Services\WorkOrderCompletionService;
 
 $isInProgress = isset($order['status']) && in_array($order['status'], ['in_progress','working'], true);
-$isFinished = isset($order['status']) && in_array($order['status'], ['finished','completed','closed'], true);
+$isFinished = isset($order['status']) && in_array($order['status'], ['finished','completed','accepted','closed'], true);
 $completionReadiness = $isInProgress ? (new WorkOrderCompletionService())->readiness((int) $order['id']) : null;
 ?>
 <section id="operational-completion" class="rounded-2xl border <?= $isFinished ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-200 bg-white' ?> p-6 shadow-sm">
@@ -18,7 +18,7 @@ $completionReadiness = $isInProgress ? (new WorkOrderCompletionService())->readi
     <?php if($isFinished): ?>
         <div class="mt-6 grid gap-4 md:grid-cols-2">
             <article class="rounded-xl border border-emerald-200 bg-white p-4"><p class="text-xs uppercase tracking-wide text-slate-500">Finalización real</p><p class="mt-2 font-bold text-slate-950"><?= esc(!empty($order['finished_at']) ? date('d/m/Y H:i', strtotime($order['finished_at'])) : '—') ?></p></article>
-            <article class="rounded-xl border border-emerald-200 bg-white p-4"><p class="text-xs uppercase tracking-wide text-slate-500">Siguiente etapa</p><p class="mt-2 font-bold text-slate-950">Aceptación del cliente</p></article>
+            <article class="rounded-xl border border-emerald-200 bg-white p-4"><p class="text-xs uppercase tracking-wide text-slate-500">Siguiente etapa</p><p class="mt-2 font-bold text-slate-950"><?= $order['status']==='accepted' ? 'Cierre formal de la OT' : ($order['status']==='closed' ? 'Facturación' : 'Aceptación del cliente') ?></p></article>
         </div>
         <?php if(!empty($order['completion_summary'])): ?><div class="mt-4 rounded-xl border border-emerald-200 bg-white p-4"><p class="text-xs uppercase tracking-wide text-slate-500">Resumen del trabajo</p><p class="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700"><?= esc($order['completion_summary']) ?></p><?php if(!empty($order['completion_notes'])): ?><p class="mt-3 border-t border-slate-100 pt-3 text-sm text-slate-600"><strong>Observaciones:</strong> <?= esc($order['completion_notes']) ?></p><?php endif ?></div><?php endif ?>
     <?php elseif($isInProgress): ?>
