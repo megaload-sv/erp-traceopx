@@ -56,6 +56,20 @@ class BillingController extends BaseController
         return view('billing/show', ['title' => 'Facturación ' . $workspace['billingCase']['code']] + $workspace);
     }
 
+    public function dteConsole(int $billingCaseId): string
+    {
+        $workspace = (new BillingPreparationService())->workspace($billingCaseId);
+        $dte = (new DteDocumentService())->workspace($billingCaseId);
+        $preview = (new DteJsonBuilderService())->buildForBillingCase($billingCaseId);
+
+        return view('billing/dte_console', [
+            'title' => 'DTE Console ' . $workspace['billingCase']['code'],
+            'billingCase' => $workspace['billingCase'],
+            'dteDocument' => $dte['document'],
+            'preview' => $preview,
+        ]);
+    }
+
     public function jsonPreview(int $billingCaseId)
     {
         try {
