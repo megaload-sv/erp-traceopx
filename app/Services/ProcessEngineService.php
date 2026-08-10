@@ -15,108 +15,84 @@ class ProcessEngineService
         }
 
         $db = db_connect();
-        $milestones = $db->table('service_case_milestones')
-            ->where('service_case_id', $serviceCaseId)
-            ->where('delete_date', null)
-            ->orderBy('sequence')
-            ->get()
-            ->getResultArray();
-
-        $openExceptions = $db->table('process_exceptions')
-            ->where('service_case_id', $serviceCaseId)
-            ->where('status', 'open')
-            ->where('delete_date', null)
-            ->get()
-            ->getResultArray();
-
+        $milestones = $db->table('service_case_milestones')->where('service_case_id', $serviceCaseId)->where('delete_date', null)->orderBy('sequence')->get()->getResultArray();
+        $openExceptions = $db->table('process_exceptions')->where('service_case_id', $serviceCaseId)->where('status', 'open')->where('delete_date', null)->get()->getResultArray();
         $openIncidents = $db->tableExists('work_order_incidents')
-            ? $db->table('work_order_incidents')
-                ->where('service_case_id', $serviceCaseId)
-                ->where('status', 'open')
-                ->orderBy('occurred_at', 'DESC')
-                ->get()->getResultArray()
+            ? $db->table('work_order_incidents')->where('service_case_id', $serviceCaseId)->where('status', 'open')->orderBy('occurred_at', 'DESC')->get()->getResultArray()
             : [];
 
-        $coordination = null;
-        if ($db->tableExists('coordination_plans')) {
-            $coordination = $db->table('coordination_plans')
-                ->where('service_case_id', $serviceCaseId)
-                ->where('delete_date', null)
-                ->orderBy('id', 'DESC')
-                ->get(1)
-                ->getRowArray();
-        }
+        $coordination = $db->tableExists('coordination_plans')
+            ? $db->table('coordination_plans')->where('service_case_id', $serviceCaseId)->where('delete_date', null)->orderBy('id', 'DESC')->get(1)->getRowArray()
+            : null;
 
         $workOrder = null;
         if ($db->tableExists('work_orders')) {
             $workOrder = $db->table('work_orders wo')
                 ->select('wo.*, employees.name AS mission_leader_name, employees.employee_code AS mission_leader_code')
                 ->join('employees', 'employees.id = wo.mission_leader_employee_id', 'left')
-                ->where('wo.service_case_id', $serviceCaseId)
-                ->where('wo.delete_date', null)
-                ->orderBy('wo.id', 'DESC')
-                ->get(1)
-                ->getRowArray();
+                ->where('wo.service_case_id', $serviceCaseId)->where('wo.delete_date', null)->orderBy('wo.id', 'DESC')->get(1)->getRowArray();
         }
 
         $acceptance = null;
         if ($workOrder !== null && $db->tableExists('work_order_acceptances')) {
-            $acceptance = $db->table('work_order_acceptances')
-                ->where('work_order_id', (int) $workOrder['id'])
-                ->whereIn('result', ['accepted', 'accepted_with_observations'])
-                ->orderBy('accepted_at', 'DESC')
-                ->orderBy('id', 'DESC')
-                ->get(1)
-                ->getRowArray();
+            $acceptance = $db->table('work_order_acceptances')->where('work_order_id', (int) $workOrder['id'])
+                ->whereIn('result', ['accepted', 'accepted_with_observations'])->orderBy('accepted_at', 'DESC')->orderBy('id', 'DESC')->get(1)->getRowArray();
+        }
+
+        $billingCase = $db->tableExists('billing_cases')
+            ? $db->table('billing_cases')->where('service_case_id', $serviceCaseId)->where('delete_date', null)->orderBy('id', 'DESC')->get(1)->getRowArray()
+            : null;
+        $dteDocument = null;
+        if ($billingCase !== null && $db->tableExists('dte_documents')) {
+            $dteDocument = $db->table('dte_documents')->where('billing_case_id', (int) $billingCase['id'])->orderBy('id', 'DESC')->get(1)->getRowArray();
         }
 
         if ($coordination !== null && $coordination['status'] === 'approved') {
-            $this->completeMilestone(
-                $serviceCaseId,
-                'coordination_authorized',
-                'coordination_plan',
-                (int) $coordination['id'],
-                'Coordinación operativa aprobada.'
-            );
+            $this->completeMilestone($serviceCaseId, 'coordination_authorized', 'coordination_plan', (int) $coordination['id'], 'Coordinación operativa aprobada.');
         }
-
         if ($workOrder !== null && in_array($workOrder['status'], ['completed', 'finished', 'accepted', 'closed'], true)) {
-            $this->completeMilestone(
-                $serviceCaseId,
-                'work_order_completed',
-                'work_order',
-                (int) $workOrder['id'],
-                'Trabajo operativo finalizado.'
-            );
+            $this->completeMilestone($serviceCaseId, 'work_order_completed', 'work_order', (int) $workOrder['id'], 'Trabajo operativo finalizado.');
         }
-
         if ($acceptance !== null) {
-            $this->completeMilestone(
-                $serviceCaseId,
-                'customer_acceptance_signed',
-                'work_order_acceptance',
-                (int) $acceptance['id'],
-                'Aceptación del cliente registrada por ' . $acceptance['receiver_name'] . '.'
-            );
+            $this->completeMilestone($serviceCaseId, 'customer_acceptance_signed', 'work_order_acceptance', (int) $acceptance['id'], 'Aceptación del cliente registrada por ' . $acceptance['receiver_name'] . '.');
         }
-
         if ($workOrder !== null && $workOrder['status'] === 'closed') {
+            $this->completeMilestone($serviceCaseId, 'operational_closure_approved', 'work_order', (int) $workOrder['id'], 'Cierre formal de la Orden de Trabajo aprobado.');
+        }
+
+        $billingCompleted = $billingCase !== null && in_array((string) ($billingCase['status'] ?? ''), ['issued', 'completed', 'closed'], true);
+        if (! $billingCompleted && $dteDocument !== null) {
+            $billingCompleted = in_array((string) ($dteDocument['status'] ?? ''), ['issued', 'accepted', 'processed', 'completed'], true);
+        }
+        if ($billingCompleted) {
             $this->completeMilestone(
                 $serviceCaseId,
-                'operational_closure_approved',
-                'work_order',
-                (int) $workOrder['id'],
-                'Cierre formal de la Orden de Trabajo aprobado.'
+                'billing_completed',
+                $dteDocument !== null ? 'dte_document' : 'billing_case',
+                $dteDocument !== null ? (int) $dteDocument['id'] : (int) $billingCase['id'],
+                'Facturación formal completada y documento emitido.'
             );
         }
 
-        $milestones = $db->table('service_case_milestones')
-            ->where('service_case_id', $serviceCaseId)
-            ->where('delete_date', null)
-            ->orderBy('sequence')
-            ->get()
-            ->getResultArray();
+        if ($billingCase !== null) {
+            $target = round((float) ($billingCase['invoiceable_amount'] ?? $billingCase['quotation_total_snapshot'] ?? 0), 2);
+            $paid = round((float) ($billingCase['paid_amount'] ?? 0), 2);
+            $balance = round((float) ($billingCase['balance_amount'] ?? max(0, $target - $paid)), 2);
+            if ($target > 0 && $paid > 0 && $balance <= 0.009) {
+                $lastPayment = $db->tableExists('billing_payments')
+                    ? $db->table('billing_payments')->where('billing_case_id', (int) $billingCase['id'])->where('status', 'confirmed')->orderBy('payment_date', 'DESC')->orderBy('id', 'DESC')->get(1)->getRowArray()
+                    : null;
+                $this->completeMilestone(
+                    $serviceCaseId,
+                    'collection_completed',
+                    $lastPayment !== null ? 'billing_payment' : 'billing_case',
+                    $lastPayment !== null ? (int) $lastPayment['id'] : (int) $billingCase['id'],
+                    'Cobro completado. Total confirmado $' . number_format($paid, 2) . ' · Saldo $0.00.'
+                );
+            }
+        }
 
+        $milestones = $db->table('service_case_milestones')->where('service_case_id', $serviceCaseId)->where('delete_date', null)->orderBy('sequence')->get()->getResultArray();
         $next = null;
         foreach ($milestones as $milestone) {
             if ((int) $milestone['required'] === 1 && $milestone['status'] !== 'completed') {
@@ -126,12 +102,8 @@ class ProcessEngineService
         }
 
         $penalty = 0;
-        foreach ($openExceptions as $exception) {
-            $penalty += $this->severityPenalty((string) $exception['severity']);
-        }
-        foreach ($openIncidents as $incident) {
-            $penalty += $this->severityPenalty((string) $incident['severity']);
-        }
+        foreach ($openExceptions as $exception) $penalty += $this->severityPenalty((string) $exception['severity']);
+        foreach ($openIncidents as $incident) $penalty += $this->severityPenalty((string) $incident['severity']);
         $healthScore = max(0, 100 - min(100, $penalty));
 
         $currentStage = (string) $case['current_stage'];
@@ -157,16 +129,21 @@ class ProcessEngineService
                 'closed' => ['billing.prepare', 'Preparar facturación', 'completed'],
                 default => ['work_order.review', 'Revisar Orden de Trabajo', (string) $workOrder['status']],
             };
-
-            if (in_array($workOrder['status'], ['accepted', 'closed'], true)) {
-                $currentStage = 'operational_closure';
-            }
+            if (in_array($workOrder['status'], ['accepted', 'closed'], true)) $currentStage = 'operational_closure';
         }
 
-        $criticalIncidents = array_values(array_filter(
-            $openIncidents,
-            static fn(array $incident): bool => $incident['severity'] === 'critical'
-        ));
+        if ($billingCase !== null) {
+            $currentStage = 'billing';
+            if ($billingCompleted) {
+                $operationalStatus = ((float) ($billingCase['balance_amount'] ?? 0)) <= 0.009 ? 'billing_and_collection_completed' : 'billing_completed_pending_collection';
+            } else {
+                $operationalStatus = 'billing_preparation';
+            }
+            $nextActionCode = $next['milestone_code'] ?? 'billing.review';
+            $nextActionLabel = $next['milestone_label'] ?? 'Revisar facturación';
+        }
+
+        $criticalIncidents = array_values(array_filter($openIncidents, static fn(array $incident): bool => $incident['severity'] === 'critical'));
         if ($workOrder !== null && in_array($workOrder['status'], ['in_progress', 'working'], true) && $criticalIncidents !== []) {
             $nextActionCode = 'incident.critical';
             $nextActionLabel = 'Atender incidencia crítica';
@@ -174,9 +151,7 @@ class ProcessEngineService
         }
 
         $blockingReasons = array_column($openExceptions, 'title');
-        foreach ($criticalIncidents as $incident) {
-            $blockingReasons[] = 'Incidencia crítica: ' . $incident['title'];
-        }
+        foreach ($criticalIncidents as $incident) $blockingReasons[] = 'Incidencia crítica: ' . $incident['title'];
 
         $now = date('Y-m-d H:i:s');
         if ($currentStage !== (string) $case['current_stage']) {
@@ -199,20 +174,12 @@ class ProcessEngineService
         ]);
 
         return [
-            'case' => array_merge($case, [
-                'current_stage' => $currentStage,
-                'operational_status' => $operationalStatus,
-            ]),
+            'case' => array_merge($case, ['current_stage' => $currentStage, 'operational_status' => $operationalStatus]),
             'milestones' => $milestones,
             'exceptions' => $openExceptions,
             'incidents' => $openIncidents,
             'health_score' => $healthScore,
-            'next_action' => [
-                'code' => $nextActionCode,
-                'label' => $nextActionLabel,
-                'blocked' => $blockingReasons !== [],
-                'blocking_reasons' => $blockingReasons,
-            ],
+            'next_action' => ['code' => $nextActionCode, 'label' => $nextActionLabel, 'blocked' => $blockingReasons !== [], 'blocking_reasons' => $blockingReasons],
             'coordination' => $coordination,
             'work_order' => $workOrder,
             'acceptance' => $acceptance,
@@ -222,16 +189,8 @@ class ProcessEngineService
     private function completeMilestone(int $serviceCaseId, string $code, string $entityType, int $entityId, string $notes): void
     {
         $db = db_connect();
-        $milestone = $db->table('service_case_milestones')
-            ->where('service_case_id', $serviceCaseId)
-            ->where('milestone_code', $code)
-            ->where('delete_date', null)
-            ->get()
-            ->getRowArray();
-
-        if ($milestone === null || $milestone['status'] === 'completed') {
-            return;
-        }
+        $milestone = $db->table('service_case_milestones')->where('service_case_id', $serviceCaseId)->where('milestone_code', $code)->where('delete_date', null)->get()->getRowArray();
+        if ($milestone === null || $milestone['status'] === 'completed') return;
 
         $db->table('service_case_milestones')->where('id', (int) $milestone['id'])->update([
             'status' => 'completed',
