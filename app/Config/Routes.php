@@ -92,6 +92,31 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('(:num)/evidence/(:num)/download', 'WorkOrdersController::downloadEvidence/$1/$2', ['as' => 'work_orders.evidence.download']);
     });
 
+    $routes->group('billing', static function (RouteCollection $routes): void {
+        $routes->get('', 'BillingController::index', ['as' => 'billing.index']);
+        $routes->post('service-case/(:num)/prepare', 'BillingController::prepare/$1', ['as' => 'billing.prepare']);
+        $routes->get('(:num)/dte-json', 'BillingController::jsonPreview/$1', ['as' => 'billing.dte_json.preview']);
+        $routes->post('(:num)/dte-final-issue', 'BillingController::prepareFinalIssue/$1', ['as' => 'billing.dte.final_issue']);
+        $routes->get('(:num)/payments', 'BillingPaymentsController::index/$1', ['as' => 'billing.payments.index']);
+        $routes->post('(:num)/payments', 'BillingPaymentsController::store/$1', ['as' => 'billing.payments.store']);
+        $routes->get('(:num)', 'BillingController::show/$1', ['as' => 'billing.show']);
+        $routes->post('(:num)/receiver', 'BillingController::updateReceiver/$1', ['as' => 'billing.receiver.update']);
+        $routes->post('(:num)/receiver/restore', 'BillingController::restoreReceiver/$1', ['as' => 'billing.receiver.restore']);
+        $routes->post('(:num)/items/(:num)/tax', 'BillingController::updateItemTax/$1/$2', ['as' => 'billing.items.tax.update']);
+    });
+
+    $routes->group('dte-settings', static function (RouteCollection $routes): void {
+        $routes->get('', 'DteSettingsController::index', ['as' => 'dte_settings.index']);
+        $routes->get('issuer', 'DteIssuerSettingsController::index', ['as' => 'dte_settings.issuer']);
+        $routes->post('issuer', 'DteIssuerSettingsController::saveIssuer', ['as' => 'dte_settings.issuer.save']);
+        $routes->post('emission', 'DteIssuerSettingsController::saveEmission', ['as' => 'dte_settings.emission.save']);
+        $routes->post('establishments', 'DteSettingsController::storeEstablishment', ['as' => 'dte_settings.establishments.store']);
+        $routes->post('establishments/(:num)', 'DteSettingsController::updateEstablishment/$1', ['as' => 'dte_settings.establishments.update']);
+        $routes->post('points-of-sale', 'DteSettingsController::storePointOfSale', ['as' => 'dte_settings.points_of_sale.store']);
+        $routes->post('points-of-sale/(:num)', 'DteSettingsController::updatePointOfSale/$1', ['as' => 'dte_settings.points_of_sale.update']);
+        $routes->post('units/(:num)', 'DteSettingsController::mapUnit/$1', ['as' => 'dte_settings.units.map']);
+    });
+
     $routes->group('equipment', static function (RouteCollection $routes): void {
         $routes->get('', 'EquipmentController::index', ['as' => 'equipment.index']);
         $routes->get('create', 'EquipmentController::create', ['as' => 'equipment.create']);
@@ -120,13 +145,11 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('(:num)', 'CustomersController::show/$1', ['as' => 'customers.show']);
         $routes->get('(:num)/edit', 'CustomersController::edit/$1', ['as' => 'customers.edit']);
         $routes->post('(:num)', 'CustomersController::update/$1', ['as' => 'customers.update']);
-
         $routes->get('(:num)/contacts/create', 'CustomerContactsController::create/$1', ['as' => 'customers.contacts.create']);
         $routes->post('(:num)/contacts', 'CustomerContactsController::store/$1', ['as' => 'customers.contacts.store']);
         $routes->get('(:num)/contacts/(:num)/edit', 'CustomerContactsController::edit/$1/$2', ['as' => 'customers.contacts.edit']);
         $routes->post('(:num)/contacts/(:num)', 'CustomerContactsController::update/$1/$2', ['as' => 'customers.contacts.update']);
         $routes->post('(:num)/contacts/(:num)/primary', 'CustomerContactsController::makePrimary/$1/$2', ['as' => 'customers.contacts.primary']);
-
         $routes->get('(:num)/addresses/create', 'CustomerAddressesController::create/$1', ['as' => 'customers.addresses.create']);
         $routes->post('(:num)/addresses', 'CustomerAddressesController::store/$1', ['as' => 'customers.addresses.store']);
         $routes->get('(:num)/addresses/(:num)/edit', 'CustomerAddressesController::edit/$1/$2', ['as' => 'customers.addresses.edit']);

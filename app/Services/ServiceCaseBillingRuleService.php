@@ -6,14 +6,23 @@ class ServiceCaseBillingRuleService
 {
     public function derive(?array $paymentTerm): array
     {
-        $text = mb_strtoupper(trim((string) ($paymentTerm['name'] ?? $paymentTerm['description'] ?? '')));
-        $requiresAdvance = str_contains($text, 'ANTICIP');
-        $percentage = 0.0;
+        $structuredRequiresAdvance = isset($paymentTerm['requires_advance'])
+            ? (int) $paymentTerm['requires_advance'] === 1
+            : null;
+        $structuredPercentage = isset($paymentTerm['minimum_advance_percentage'])
+            ? (float) $paymentTerm['minimum_advance_percentage']
+            : null;
 
-        if ($requiresAdvance && preg_match('/(\d{1,3})\s*%/', $text, $matches) === 1) {
-            $percentage = min(100, (float) $matches[1]);
-        } elseif ($requiresAdvance && str_contains($text, '100%')) {
-            $percentage = 100.0;
+        if ($structuredRequiresAdvance !== null) {
+            $requiresAdvance = $structuredRequiresAdvance;
+            $percentage = $requiresAdvance ? max(0, min(100, (float) ($structuredPercentage ?? 0))) : 0.0;
+        } else {
+            $text = mb_strtoupper(trim((string) ($paymentTerm['name'] ?? $paymentTerm['description'] ?? '')));
+            $requiresAdvance = str_contains($text, 'ANTICIP');
+            $percentage = 0.0;
+            if ($requiresAdvance && preg_match('/(\d{1,3})\s*%/', $text, $matches) === 1) {
+                $percentage = min(100, (float) $matches[1]);
+            }
         }
 
         return [
@@ -21,8 +30,8 @@ class ServiceCaseBillingRuleService
             'advance_percentage' => $percentage,
             'coordination_blocked_until_advance' => $requiresAdvance ? 1 : 0,
             'rule_notes' => $requiresAdvance
-                ? 'La coordinación queda bloqueada hasta registrar y validar el anticipo requerido.'
-                : 'No se detectó un anticipo obligatorio en la forma de pago seleccionada.',
+                ? sprintf('La coordinación queda bloqueada hasta registrar y validar el anticipo requerido de %.2f%%.', $percentage)
+                : 'La condición comercial no exige anticipo previo para liberar coordinación.',
         ];
     }
 }

@@ -55,19 +55,16 @@ class QuotationsController extends BaseController
 
         if ($commercialRequestId > 0) {
             $commercialRequest = $db->table('commercial_requests')->where('id', $commercialRequestId)->where('delete_date', null)->get()->getRowArray();
-
             if ($commercialRequest === null) {
                 return redirect()->to(route_to('commercial_requests.index'))->with('error', 'La solicitud comercial seleccionada no existe.');
             }
             if (empty($commercialRequest['customer_id'])) {
                 return redirect()->to(route_to('commercial_requests.show', $commercialRequestId))->with('error', 'Asocie un cliente a la solicitud antes de preparar la cotización.');
             }
-
             $existingQuotation = $db->table('quotations')->where('commercial_request_id', $commercialRequestId)->where('delete_date', null)->orderBy('id', 'DESC')->get()->getRowArray();
             if ($existingQuotation !== null) {
                 return redirect()->to(route_to('quotations.show', (int) $existingQuotation['id']))->with('success', 'Esta solicitud ya tiene una cotización asociada.');
             }
-
             $defaultUserId = ! empty($commercialRequest['assigned_user_id']) ? (int) $commercialRequest['assigned_user_id'] : $defaultUserId;
         }
 
@@ -77,6 +74,9 @@ class QuotationsController extends BaseController
             'contacts' => $db->table('customer_contacts')->where('status', 1)->orderBy('is_primary', 'DESC')->orderBy('name')->get()->getResultArray(),
             'users' => $users,
             'paymentTerms' => $db->table('payment_terms')->where('status', 1)->orderBy('name')->get()->getResultArray(),
+            'operationConditions' => $this->catalog('CAT-016'),
+            'paymentMethods' => $this->catalog('CAT-017'),
+            'creditTerms' => $this->catalog('CAT-018'),
             'defaultUserId' => $defaultUserId,
             'commercialRequestId' => $commercialRequestId ?: null,
             'commercialRequest' => $commercialRequest,
@@ -112,6 +112,38 @@ class QuotationsController extends BaseController
         $subject = trim((string) $this->request->getPost('subject'));
         if ($subject === '') return redirect()->back()->withInput()->with('error', 'Ingrese el asunto de la cotización.');
 
+        $operationCode = trim((string) $this->request->getPost('mh_operation_condition_code'));
+        if ($this->catalogRow('CAT-016', $operationCode) === null) {
+            return redirect()->back()->withInput()->with('error', 'Seleccione una condición de la operación CAT-016 válida.');
+        }
+
+        $creditTermCode = trim((string) $this->request->getPost('mh_credit_term_code'));
+        $creditPeriodRaw = trim((string) $this->request->getPost('mh_credit_period'));
+        $creditPeriod = $creditPeriodRaw === '' ? null : (int) $creditPeriodRaw;
+        if ($operationCode === '2') {
+            if ($this->catalogRow('CAT-018', $creditTermCode) === null || $creditPeriod === null || $creditPeriod <= 0) {
+                return redirect()->back()->withInput()->with('error', 'Para una operación a crédito indique el plazo CAT-018 y un período mayor que cero.');
+            }
+        } elseif ($operationCode === '1') {
+            $creditTermCode = '';
+            $creditPeriod = null;
+        } elseif (($creditTermCode !== '' || $creditPeriod !== null) && ($this->catalogRow('CAT-018', $creditTermCode) === null || $creditPeriod === null || $creditPeriod <= 0)) {
+            return redirect()->back()->withInput()->with('error', 'Si define plazo para la operación, seleccione CAT-018 e indique un período válido.');
+        }
+
+        $paymentMethodCodes = array_values(array_unique(array_filter(array_map('strval', (array) $this->request->getPost('mh_payment_methods')))));
+        if ($paymentMethodCodes === []) {
+            return redirect()->back()->withInput()->with('error', 'Seleccione al menos una forma de pago prevista CAT-017.');
+        }
+        $plannedMethods = [];
+        foreach ($paymentMethodCodes as $code) {
+            $row = $this->catalogRow('CAT-017', $code);
+            if ($row === null) {
+                return redirect()->back()->withInput()->with('error', 'Una de las formas de pago CAT-017 seleccionadas no es válida.');
+            }
+            $plannedMethods[] = $row;
+        }
+
         $db->transStart();
         try {
             $quotationId = (new QuotationService())->createDraft([
@@ -119,6 +151,9 @@ class QuotationsController extends BaseController
                 'customer_id' => $customerId,
                 'assigned_user_id' => $assignedUserId,
                 'payment_term_id' => $this->nullableInt('payment_term_id'),
+                'mh_operation_condition_code' => $operationCode,
+                'mh_credit_term_code' => $creditTermCode !== '' ? $creditTermCode : null,
+                'mh_credit_period' => $creditPeriod,
                 'origin_type' => $commercialRequestId ? 'commercial_request' : 'direct',
                 'subject' => $subject,
                 'quotation_date' => (string) ($this->request->getPost('quotation_date') ?: date('Y-m-d')),
@@ -129,13 +164,25 @@ class QuotationsController extends BaseController
                 'agent_phone_snapshot' => $user['phone'] ?? null,
             ]);
 
+            $now = date('Y-m-d H:i:s');
+            foreach ($plannedMethods as $sequence => $method) {
+                $db->table('quotation_payment_methods')->insert([
+                    'quotation_id' => $quotationId,
+                    'mh_payment_code' => $method['code'],
+                    'payment_method_name_snapshot' => $method['name'],
+                    'sequence' => $sequence + 1,
+                    'entry_user' => (string) (session('auth_user_email') ?: 'system'),
+                    'entry_date' => $now,
+                ]);
+            }
+
             if ($contact !== null) {
                 $db->table('quotation_recipients')->insert([
                     'quotation_id' => $quotationId,
                     'customer_contact_id' => (int) $contact['id'],
                     'is_primary' => 1,
                     'entry_user' => (string) (session('auth_user_email') ?: 'system'),
-                    'entry_date' => date('Y-m-d H:i:s'),
+                    'entry_date' => $now,
                 ]);
             }
 
@@ -143,7 +190,7 @@ class QuotationsController extends BaseController
                 $db->table('commercial_requests')->where('id', $commercialRequestId)->update([
                     'status' => 'quotation_preparation',
                     'modify_user' => (string) (session('auth_user_email') ?: 'system'),
-                    'modify_date' => date('Y-m-d H:i:s'),
+                    'modify_date' => $now,
                 ]);
                 (new ActivityService())->record('commercial_request', $commercialRequestId, 'commercial_request.quotation_created', 'Cotización en preparación', 'Se creó la cotización asociada y el proceso avanzó a preparación.');
             }
@@ -190,6 +237,9 @@ class QuotationsController extends BaseController
             'items' => $items,
             'catalogItems' => (new CommercialItemModel())->where('status', 1)->orderBy('name')->findAll(),
             'units' => $db->table('commercial_units')->where('status', 1)->orderBy('name')->get()->getResultArray(),
+            'plannedPaymentMethods' => $db->table('quotation_payment_methods')->where('quotation_id', $id)->orderBy('sequence')->get()->getResultArray(),
+            'operationCondition' => ! empty($quotation['mh_operation_condition_code']) ? $this->catalogRow('CAT-016', (string) $quotation['mh_operation_condition_code']) : null,
+            'creditTerm' => ! empty($quotation['mh_credit_term_code']) ? $this->catalogRow('CAT-018', (string) $quotation['mh_credit_term_code']) : null,
         ]);
     }
 
@@ -202,47 +252,33 @@ class QuotationsController extends BaseController
         $sourceType = (string) ($this->request->getPost('source_type') ?: 'manual');
         $catalogItem = null;
         $catalogItemId = $this->nullableInt('commercial_item_id');
-
         if ($sourceType === 'catalog') {
             $catalogItem = $catalogItemId ? (new CommercialItemModel())->where('status', 1)->find($catalogItemId) : null;
             if ($catalogItem === null) return redirect()->back()->with('error', 'Seleccione un concepto válido del catálogo.');
-        } elseif ($sourceType !== 'manual') {
-            return redirect()->back()->with('error', 'El origen del concepto no es válido.');
-        }
+        } elseif ($sourceType !== 'manual') return redirect()->back()->with('error', 'El origen del concepto no es válido.');
 
         $description = trim((string) $this->request->getPost('description'));
         $longDescription = trim((string) $this->request->getPost('long_description'));
         $unitId = $this->nullableInt('unit_id');
         $quantity = (float) $this->request->getPost('quantity');
         $unitPrice = (float) $this->request->getPost('unit_price');
-
         if ($catalogItem !== null) {
             $description = $description !== '' ? $description : (string) $catalogItem['name'];
             $longDescription = $longDescription !== '' ? $longDescription : (string) ($catalogItem['long_description'] ?? '');
             $unitId ??= ! empty($catalogItem['default_unit_id']) ? (int) $catalogItem['default_unit_id'] : null;
             if ($unitPrice <= 0) $unitPrice = (float) $catalogItem['suggested_price'];
         }
-
         if ($description === '') return redirect()->back()->withInput()->with('error', 'Ingrese la descripción del concepto.');
         if ($quantity <= 0) return redirect()->back()->withInput()->with('error', 'La cantidad debe ser mayor que cero.');
         if ($unitPrice < 0) return redirect()->back()->withInput()->with('error', 'El precio no puede ser negativo.');
 
         $sortOrder = ((int) ((new QuotationItemModel())->where('quotation_id', $quotationId)->selectMax('sort_order')->first()['sort_order'] ?? 0)) + 1;
         $itemId = (new QuotationItemModel())->insert([
-            'quotation_id' => $quotationId,
-            'commercial_item_id' => $catalogItemId,
-            'source_type' => $sourceType,
-            'description' => $description,
-            'long_description' => $longDescription ?: null,
-            'unit_id' => $unitId,
-            'quantity' => $quantity,
-            'unit_price' => $unitPrice,
-            'line_total' => round($quantity * $unitPrice, 2),
-            'sort_order' => $sortOrder,
+            'quotation_id' => $quotationId, 'commercial_item_id' => $catalogItemId, 'source_type' => $sourceType,
+            'description' => $description, 'long_description' => $longDescription ?: null, 'unit_id' => $unitId,
+            'quantity' => $quantity, 'unit_price' => $unitPrice, 'line_total' => round($quantity * $unitPrice, 2), 'sort_order' => $sortOrder,
         ], true);
-
         if ($itemId === false) return redirect()->back()->withInput()->with('error', 'No fue posible agregar el concepto.');
-
         (new QuotationService())->recalculateTotals($quotationId);
         (new ActivityService())->record('quotation', $quotationId, 'quotation.item_added', 'Concepto agregado', $description . ' · ' . ucfirst($sourceType));
         return redirect()->to(route_to('quotations.show', $quotationId))->with('success', 'Concepto agregado a la cotización.');
@@ -253,14 +289,27 @@ class QuotationsController extends BaseController
         $quotation = (new QuotationModel())->find($quotationId);
         $itemModel = new QuotationItemModel();
         $item = $itemModel->where('quotation_id', $quotationId)->find($itemId);
-
         if ($quotation === null || $item === null) return redirect()->to(route_to('quotations.index'))->with('error', 'Concepto no encontrado.');
         if ($quotation['status'] !== 'draft') return redirect()->to(route_to('quotations.show', $quotationId))->with('error', 'Solo se pueden eliminar conceptos en borrador.');
-
         $itemModel->delete($itemId);
         (new QuotationService())->recalculateTotals($quotationId);
         (new ActivityService())->record('quotation', $quotationId, 'quotation.item_deleted', 'Concepto eliminado', (string) $item['description']);
         return redirect()->to(route_to('quotations.show', $quotationId))->with('success', 'Concepto eliminado.');
+    }
+
+    private function catalog(string $catalogCode): array
+    {
+        return db_connect()->table('mh_catalog_values')
+            ->where('catalog_code', $catalogCode)->where('status', 1)
+            ->orderBy('display_order')->orderBy('code')->get()->getResultArray();
+    }
+
+    private function catalogRow(string $catalogCode, string $code): ?array
+    {
+        if ($code === '') return null;
+        return db_connect()->table('mh_catalog_values')
+            ->where('catalog_code', $catalogCode)->where('code', $code)->where('status', 1)
+            ->get()->getRowArray();
     }
 
     private function nullableInt(string $field): ?int

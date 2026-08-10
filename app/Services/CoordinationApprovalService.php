@@ -27,6 +27,8 @@ class CoordinationApprovalService
             ->where('cpe.delete_date', null)
             ->get()->getResultArray();
 
+        $financialGate = (new FinancialPolicyService())->coordinationGate((int) $plan['service_case_id']);
+
         $scheduled = ! empty($plan['scheduled_start_at']);
         $estimated = ! empty($plan['estimated_end_at']);
         $validRange = $scheduled && $estimated
@@ -50,6 +52,7 @@ class CoordinationApprovalService
         }
 
         $checks = [
+            ['key' => 'financial_gate', 'label' => 'Política financiera habilita coordinación', 'complete' => $approved || $financialGate['allowed']],
             ['key' => 'schedule', 'label' => 'Programación definida', 'complete' => $scheduled && $estimated && $validRange],
             ['key' => 'location', 'label' => 'Lugar de ejecución', 'complete' => $hasLocation],
             ['key' => 'scope', 'label' => 'Alcance operativo', 'complete' => $hasScope],
@@ -63,7 +66,9 @@ class CoordinationApprovalService
         $missing = [];
         foreach ($checks as $check) {
             if (! $check['complete']) {
-                $missing[] = $check['label'];
+                $missing[] = $check['key'] === 'financial_gate' && $financialGate['reason']
+                    ? $financialGate['reason']
+                    : $check['label'];
             }
         }
         foreach ($resourceWorkspace['missing_required'] as $requirement) {
@@ -78,6 +83,7 @@ class CoordinationApprovalService
             'plan' => $plan,
             'equipment' => $equipment,
             'resource_workspace' => $resourceWorkspace,
+            'financial_gate' => $financialGate,
             'checks' => $checks,
             'missing' => $missing,
             'ready' => $missing === [] && $plan['status'] === 'draft',
@@ -158,7 +164,7 @@ class CoordinationApprovalService
                 'service_case_id' => (int) $check['plan']['service_case_id'],
                 'event_code' => 'coordination.approved',
                 'title' => 'Coordinación operativa aprobada',
-                'description' => 'Los recursos humanos y la maquinaria fueron convertidos en asignaciones formales para la misión.',
+                'description' => 'Los recursos humanos y la maquinaria fueron convertidos en asignaciones formales para la misión. La compuerta financiera se encontraba liberada.',
                 'occurred_at' => date('Y-m-d H:i:s'),
                 'entry_user' => $this->actor(),
                 'entry_date' => date('Y-m-d H:i:s'),
