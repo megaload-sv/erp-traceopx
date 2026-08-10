@@ -7,7 +7,6 @@ $successfulAcceptance = $acceptanceWorkspace['successful'];
 $customerContacts = $acceptanceWorkspace['contacts'];
 $acceptanceResults = $acceptanceWorkspace['results'];
 $isFinishedForAcceptance = in_array($order['status'], ['finished','completed'], true);
-$isClosedAfterAcceptance = $order['status'] === 'closed';
 $resultClasses = [
     'accepted' => 'bg-emerald-100 text-emerald-800',
     'accepted_with_observations' => 'bg-cyan-100 text-cyan-800',
@@ -19,7 +18,7 @@ $resultClasses = [
         <div>
             <p class="text-xs font-semibold uppercase tracking-[.18em] text-violet-600">Acceptance Engine</p>
             <h3 class="mt-2 text-xl font-bold text-slate-950">Aceptación del cliente</h3>
-            <p class="mt-2 text-sm leading-6 text-slate-500">Documenta quién recibió el servicio y su conformidad. La aceptación válida completa el hito del Expediente y cierra formalmente la Orden de Trabajo.</p>
+            <p class="mt-2 text-sm leading-6 text-slate-500">Documenta quién recibió el servicio y su conformidad. Una aceptación válida completa el hito del Expediente y deja la Orden de Trabajo lista para su cierre formal.</p>
         </div>
         <?php if($successfulAcceptance): ?><span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">Aceptación registrada</span><?php elseif($isFinishedForAcceptance): ?><span class="rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-800">Pendiente de cliente</span><?php else: ?><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">No disponible</span><?php endif ?>
     </div>
@@ -32,7 +31,7 @@ $resultClasses = [
             <article class="rounded-xl border border-emerald-200 bg-white p-4"><p class="text-xs uppercase tracking-wide text-slate-500">Firma / constancia</p><?php if(!empty($successfulAcceptance['signature_stored_name'])): ?><a href="<?= route_to('work_orders.acceptance.signature',$order['id'],$successfulAcceptance['id']) ?>" class="mt-2 inline-block font-bold text-violet-700">Abrir documento →</a><?php else: ?><p class="mt-2 font-bold text-slate-500">Sin archivo</p><?php endif ?></article>
         </div>
         <?php if(!empty($successfulAcceptance['observations'])): ?><div class="mt-4 rounded-xl border border-emerald-200 bg-white p-4"><p class="text-xs uppercase tracking-wide text-slate-500">Observaciones de recepción</p><p class="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700"><?= esc($successfulAcceptance['observations']) ?></p></div><?php endif ?>
-        <div class="mt-5 rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900"><strong>Proceso operativo cerrado.</strong> El Expediente queda preparado para la siguiente etapa administrativa: definición de facturación según la forma de pago y documentos requeridos.</div>
+        <div class="mt-5 rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900"><strong>Recepción confirmada.</strong> El hito de aceptación queda completado y la Orden de Trabajo está preparada para el cierre formal antes de continuar a la etapa administrativa.</div>
     <?php elseif($isFinishedForAcceptance): ?>
         <form method="post" enctype="multipart/form-data" action="<?= route_to('work_orders.acceptance.store',$order['id']) ?>" data-processing-message="Registrando aceptación del cliente…" class="mt-6 rounded-2xl border border-violet-200 bg-violet-50/30 p-5">
             <?= csrf_field() ?>
@@ -47,7 +46,7 @@ $resultClasses = [
                 <label><span class="mb-2 block text-sm font-semibold text-slate-700">Firma / constancia *</span><input type="file" name="signature_file" accept="image/jpeg,image/png,image/webp,application/pdf" class="w-full rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3"><span class="mt-1 block text-xs text-slate-500">Obligatoria para aceptación. JPG, PNG, WEBP o PDF · máximo 10 MB.</span></label>
                 <label class="md:col-span-2"><span class="mb-2 block text-sm font-semibold text-slate-700">Observaciones</span><textarea name="observations" rows="4" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3" placeholder="Obligatorias si se acepta con observaciones o si el cliente no acepta."><?= esc(old('observations') ?? '') ?></textarea></label>
             </div>
-            <div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><strong>Importante:</strong> “No aceptado” documenta el rechazo y mantiene la OT pendiente. “Aceptado” o “Aceptado con observaciones” completa el hito de aceptación y cierra formalmente la OT.</div>
+            <div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><strong>Importante:</strong> “No aceptado” documenta el rechazo y mantiene la OT pendiente. “Aceptado” o “Aceptado con observaciones” completa el hito de aceptación y deja la OT lista para su cierre formal.</div>
             <div class="mt-5 flex justify-end"><button class="rounded-xl bg-violet-600 px-5 py-3 font-bold text-white hover:bg-violet-500">Registrar recepción del cliente →</button></div>
         </form>
     <?php else: ?>
