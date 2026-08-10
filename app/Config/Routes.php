@@ -98,6 +98,13 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('(:num)', 'BillingController::show/$1', ['as' => 'billing.show']);
     });
 
+    $routes->group('dte-settings', static function (RouteCollection $routes): void {
+        $routes->get('', 'DteSettingsController::index', ['as' => 'dte_settings.index']);
+        $routes->post('establishments', 'DteSettingsController::storeEstablishment', ['as' => 'dte_settings.establishments.store']);
+        $routes->post('points-of-sale', 'DteSettingsController::storePointOfSale', ['as' => 'dte_settings.points_of_sale.store']);
+        $routes->post('units/(:num)', 'DteSettingsController::mapUnit/$1', ['as' => 'dte_settings.units.map']);
+    });
+
     $routes->group('equipment', static function (RouteCollection $routes): void {
         $routes->get('', 'EquipmentController::index', ['as' => 'equipment.index']);
         $routes->get('create', 'EquipmentController::create', ['as' => 'equipment.create']);
