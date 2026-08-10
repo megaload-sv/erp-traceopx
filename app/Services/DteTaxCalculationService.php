@@ -6,8 +6,6 @@ use RuntimeException;
 
 class DteTaxCalculationService
 {
-    private const IVA_RATE = 0.13;
-
     public function recalculate(int $documentId): array
     {
         $db = db_connect();
@@ -26,6 +24,8 @@ class DteTaxCalculationService
             return $document;
         }
 
+        $ivaRate = $this->ivaRate();
+        $ivaLabel = 'Impuesto al Valor Agregado ' . number_format($ivaRate * 100, 2) . '%';
         $items = $db->table('dte_document_items')
             ->where('dte_document_id', $documentId)
             ->orderBy('sequence')
@@ -60,12 +60,12 @@ class DteTaxCalculationService
                 }
 
                 if ($code === 'FCF' && in_array('20', $taxCodes, true)) {
-                    // En FCF el IVA se informa por ítem; se extrae del valor gravado informado al consumidor.
-                    $ivaItem = round($taxed - ($taxed / (1 + self::IVA_RATE)), 8);
+                    // En FCF el IVA se reporta por ítem y se extrae del valor gravado informado al consumidor.
+                    $ivaItem = round($taxed - ($taxed / (1 + $ivaRate)), 8);
                     $totals['iva'] += $ivaItem;
                 } elseif (in_array($code, ['CCF', 'NC', 'ND'], true) && in_array('20', $taxCodes, true)) {
-                    $iva = round($taxed * self::IVA_RATE, 2);
-                    $this->addTaxSummary($taxSummary, '20', 'Impuesto al Valor Agregado 13%', $iva);
+                    $iva = round($taxed * $ivaRate, 2);
+                    $this->addTaxSummary($taxSummary, '20', $ivaLabel, $iva);
                     $totals['iva'] += $iva;
                 } elseif ($code === 'FEX' && in_array('C3', $taxCodes, true)) {
                     $this->addTaxSummary($taxSummary, 'C3', 'Impuesto al Valor Agregado (exportaciones) 0%', 0.0);
@@ -76,7 +76,7 @@ class DteTaxCalculationService
 
             $lineTotal = $gross;
             if (in_array($code, ['CCF', 'NC', 'ND'], true) && $classification === 'taxed' && in_array('20', $taxCodes, true)) {
-                $lineTotal = round($gross + ($gross * self::IVA_RATE), 2);
+                $lineTotal = round($gross + ($gross * $ivaRate), 2);
             }
 
             $db->table('dte_document_items')->where('id', (int) $item['id'])->update([
@@ -110,7 +110,7 @@ class DteTaxCalculationService
         $nonTaxable = round($totals['non_taxable'], 2);
         $subtotal = round($nonSubject + $exempt + $taxed, 2);
 
-        // FCF ya contiene IVA dentro del monto gravado. CCF/NC/ND lo adicionan en resumen. FEX opera a tasa 0%.
+        // FCF contiene IVA dentro del monto gravado. CCF/NC/ND lo adicionan en resumen. FEX opera con C3 a tasa 0%.
         $operation = match ($code) {
             'CCF', 'NC', 'ND' => round($subtotal + $iva + $nonTaxable - (float) $document['iva_retained'] - (float) $document['income_tax_retained'] + (float) $document['iva_perceived'], 2),
             default => round($subtotal + $nonTaxable - (float) $document['iva_retained'] - (float) $document['income_tax_retained'], 2),
@@ -133,6 +133,22 @@ class DteTaxCalculationService
         ]);
 
         return $db->table('dte_documents')->where('id', $documentId)->get()->getRowArray();
+    }
+
+    private function ivaRate(): float
+    {
+        $row = db_connect()->table('dte_settings')
+            ->where('group_code', 'tax')
+            ->where('setting_key', 'iva_rate')
+            ->where('status', 1)
+            ->get()->getRowArray();
+
+        $percentage = $row !== null ? (float) $row['setting_value'] : 13.0;
+        if ($percentage < 0 || $percentage > 100) {
+            throw new RuntimeException('La tasa de IVA configurada para DTE no es válida.');
+        }
+
+        return $percentage / 100;
     }
 
     private function decodeTaxCodes(?string $json): array
