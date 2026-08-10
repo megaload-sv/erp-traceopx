@@ -59,6 +59,17 @@ class ProcessEngineService
                 ->getRowArray();
         }
 
+        $acceptance = null;
+        if ($workOrder !== null && $db->tableExists('work_order_acceptances')) {
+            $acceptance = $db->table('work_order_acceptances')
+                ->where('work_order_id', (int) $workOrder['id'])
+                ->whereIn('result', ['accepted', 'accepted_with_observations'])
+                ->orderBy('accepted_at', 'DESC')
+                ->orderBy('id', 'DESC')
+                ->get(1)
+                ->getRowArray();
+        }
+
         if ($coordination !== null && $coordination['status'] === 'approved') {
             $this->completeMilestone(
                 $serviceCaseId,
@@ -69,13 +80,23 @@ class ProcessEngineService
             );
         }
 
-        if ($workOrder !== null && in_array($workOrder['status'], ['completed', 'finished', 'closed'], true)) {
+        if ($workOrder !== null && in_array($workOrder['status'], ['completed', 'finished', 'accepted', 'closed'], true)) {
             $this->completeMilestone(
                 $serviceCaseId,
                 'work_order_completed',
                 'work_order',
                 (int) $workOrder['id'],
                 'Trabajo operativo finalizado.'
+            );
+        }
+
+        if ($acceptance !== null) {
+            $this->completeMilestone(
+                $serviceCaseId,
+                'customer_acceptance_signed',
+                'work_order_acceptance',
+                (int) $acceptance['id'],
+                'Aceptación del cliente registrada por ' . $acceptance['receiver_name'] . '.'
             );
         }
 
@@ -122,9 +143,14 @@ class ProcessEngineService
                 'issued' => ['work_order.start', 'Iniciar ejecución de Orden de Trabajo', 'scheduled'],
                 'in_progress', 'working' => ['work_order.log', 'Registrar avance operativo', 'in_progress'],
                 'completed', 'finished' => ['customer_acceptance_signed', 'Registrar aceptación de finalización', 'completed_pending_acceptance'],
-                'closed' => ['operational_closure_approved', 'Aprobar cierre operativo', 'completed'],
+                'accepted' => ['operational_closure_approved', 'Aprobar cierre formal de Orden de Trabajo', 'accepted_pending_closure'],
+                'closed' => ['billing.prepare', 'Preparar facturación', 'completed'],
                 default => ['work_order.review', 'Revisar Orden de Trabajo', (string) $workOrder['status']],
             };
+
+            if (in_array($workOrder['status'], ['accepted', 'closed'], true)) {
+                $currentStage = 'operational_closure';
+            }
         }
 
         $criticalIncidents = array_values(array_filter(
@@ -179,6 +205,7 @@ class ProcessEngineService
             ],
             'coordination' => $coordination,
             'work_order' => $workOrder,
+            'acceptance' => $acceptance,
         ];
     }
 
