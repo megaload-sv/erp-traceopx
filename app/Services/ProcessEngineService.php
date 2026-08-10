@@ -21,6 +21,10 @@ class ProcessEngineService
             ? $db->table('work_order_incidents')->where('service_case_id', $serviceCaseId)->where('status', 'open')->orderBy('occurred_at', 'DESC')->get()->getResultArray()
             : [];
 
+        // La política financiera es la fuente de verdad para los hitos 20 y 30.
+        // Se evalúa siempre para que expedientes históricos también se sincronicen al abrirlos.
+        $financialPolicy = (new FinancialPolicyService())->evaluateForServiceCase($serviceCaseId);
+
         $coordination = $db->tableExists('coordination_plans')
             ? $db->table('coordination_plans')->where('service_case_id', $serviceCaseId)->where('delete_date', null)->orderBy('id', 'DESC')->get(1)->getRowArray()
             : null;
@@ -45,6 +49,46 @@ class ProcessEngineService
         $dteDocument = null;
         if ($billingCase !== null && $db->tableExists('dte_documents')) {
             $dteDocument = $db->table('dte_documents')->where('billing_case_id', (int) $billingCase['id'])->orderBy('id', 'DESC')->get(1)->getRowArray();
+        }
+
+        // 20 · Plan de facturación definido.
+        // Consideramos definido el plan cuando existe una condición comercial de pago
+        // y un tipo de documento fiscal resuelto en la política financiera del expediente.
+        $billingPlanDefined = ! empty($financialPolicy['payment_term_id'])
+            && trim((string) ($financialPolicy['fiscal_document_type'] ?? '')) !== '';
+
+        if ($billingPlanDefined) {
+            $this->completeMilestone(
+                $serviceCaseId,
+                'billing_plan_defined',
+                'service_case_financial_policy',
+                (int) $financialPolicy['id'],
+                'Plan de facturación definido: '
+                    . (string) ($financialPolicy['payment_term_name_snapshot'] ?? 'Condición comercial definida')
+                    . ' · Documento fiscal ' . (string) $financialPolicy['fiscal_document_type'] . '.'
+            );
+        }
+
+        // 30 · Anticipo resuelto o no requerido.
+        // clear_for_coordination significa que no existe una compuerta financiera pendiente:
+        // o el anticipo no era requerido, o el monto requerido ya fue cubierto.
+        if (($financialPolicy['status'] ?? null) === 'clear_for_coordination') {
+            $requiresAdvance = (int) ($financialPolicy['requires_advance'] ?? 0) === 1;
+            $requiredAmount = round((float) ($financialPolicy['required_before_coordination_amount'] ?? 0), 2);
+            $confirmedPaid = round((float) ($financialPolicy['confirmed_paid_amount'] ?? 0), 2);
+
+            $notes = $requiresAdvance && $requiredAmount > 0
+                ? 'Anticipo resuelto. Requerido $' . number_format($requiredAmount, 2)
+                    . ' · Pago confirmado $' . number_format($confirmedPaid, 2) . '.'
+                : 'La condición comercial no requiere anticipo para continuar.';
+
+            $this->completeMilestone(
+                $serviceCaseId,
+                'advance_requirement_resolved',
+                'service_case_financial_policy',
+                (int) $financialPolicy['id'],
+                $notes
+            );
         }
 
         if ($coordination !== null && $coordination['status'] === 'approved') {
@@ -183,6 +227,7 @@ class ProcessEngineService
             'coordination' => $coordination,
             'work_order' => $workOrder,
             'acceptance' => $acceptance,
+            'financial_policy' => $financialPolicy,
         ];
     }
 
