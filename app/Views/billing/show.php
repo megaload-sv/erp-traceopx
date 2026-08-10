@@ -98,8 +98,8 @@ $receiverMunicipalityCode = (string) old('receiver_municipality_code', (string)(
             <input type="hidden" name="receiver_person_type" value="<?= esc((string)($dteDocument['receiver_person_type']??'')) ?>">
             <input type="hidden" name="receiver_country_code" value="<?= esc($dteDocument['receiver_country_code']??'') ?>">
             <input type="hidden" name="receiver_country_name" value="<?= esc($dteDocument['receiver_country_name']??'') ?>">
-            <label class="text-sm font-semibold text-slate-700">Departamento<select id="receiver_department_code" name="receiver_department_code" class="mt-2 w-full" data-placeholder="Seleccionar departamento"><option value="">Seleccionar</option><?php foreach($departments as $row): ?><option value="<?= esc($row['code']) ?>" <?= $receiverDepartmentCode===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
-            <label class="text-sm font-semibold text-slate-700">Municipio<select id="receiver_municipality_code" name="receiver_municipality_code" class="mt-2 w-full" data-placeholder="Seleccionar municipio"><option value="">Seleccionar</option><?php foreach($municipalities as $row): ?><option value="<?= esc($row['code']) ?>" data-department="<?= esc($row['parent_code']) ?>" <?= $receiverMunicipalityCode===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
+            <label class="text-sm font-semibold text-slate-700">Departamento<select id="receiver_department_code" name="receiver_department_code" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal"><option value="">Seleccionar</option><?php foreach($departments as $row): ?><option value="<?= esc($row['code']) ?>" <?= $receiverDepartmentCode===(string)$row['code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
+            <label class="text-sm font-semibold text-slate-700">Municipio<select id="receiver_municipality_code" name="receiver_municipality_code" data-native="true" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal"><option value="">Seleccionar</option><?php foreach($municipalities as $row): ?><option value="<?= esc($row['code']) ?>" data-department="<?= esc($row['parent_code']) ?>" <?= $receiverMunicipalityCode===(string)$row['code'] && $receiverDepartmentCode===(string)$row['parent_code']?'selected':'' ?>><?= esc($row['code'].' · '.$row['name']) ?></option><?php endforeach ?></select></label>
         <?php endif ?>
 
         <label class="md:col-span-2 text-sm font-semibold text-slate-700">Actividad económica
@@ -170,45 +170,35 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!department || !municipality) return;
 
     const persistedMunicipality = <?= json_encode($receiverMunicipalityCode, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
-    const allOptions = Array.from(municipality.options).map(option => ({
+    const municipalityOptions = Array.from(municipality.options).map(option => ({
         value: option.value,
-        text: option.text,
+        text: option.textContent,
         department: option.dataset.department || ''
     }));
 
-    function filterMunicipalities(selectedValue = '') {
+    function refreshMunicipalities(selectedValue = '') {
         const selectedDepartment = department.value;
+        municipality.innerHTML = '<option value="">' + (selectedDepartment ? 'Seleccionar municipio' : 'Seleccione primero un departamento') + '</option>';
 
-        if (municipality.tomselect) municipality.tomselect.destroy();
-        municipality.innerHTML = '';
-
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = selectedDepartment ? 'Seleccionar municipio' : 'Seleccione primero un departamento';
-        municipality.appendChild(placeholder);
-
-        allOptions.filter(option => option.value && option.department === selectedDepartment).forEach(option => {
-            const element = document.createElement('option');
-            element.value = option.value;
-            element.textContent = option.text;
-            element.dataset.department = option.department;
-            if (selectedValue && option.value === selectedValue) element.selected = true;
-            municipality.appendChild(element);
+        municipalityOptions.forEach(option => {
+            if (!option.value || option.department !== selectedDepartment) return;
+            const node = document.createElement('option');
+            node.value = option.value;
+            node.textContent = option.text;
+            node.dataset.department = option.department;
+            if (selectedValue && option.value === selectedValue) node.selected = true;
+            municipality.appendChild(node);
         });
 
         municipality.disabled = !selectedDepartment;
-
-        if (window.TomSelect && !municipality.disabled) {
-            const control = new TomSelect(municipality, {create:false, allowEmptyOption:true});
-            if (selectedValue && control.options[selectedValue]) control.setValue(selectedValue, true);
-        }
+        if (selectedValue) municipality.value = selectedValue;
     }
 
     department.addEventListener('change', function () {
-        filterMunicipalities('');
+        refreshMunicipalities('');
     });
 
-    filterMunicipalities(persistedMunicipality);
+    refreshMunicipalities(persistedMunicipality);
 });
 </script>
 
