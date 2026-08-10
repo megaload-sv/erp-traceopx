@@ -49,7 +49,9 @@ class FinancialPolicyService
         $advancePercentage = max(0, min(100, $advancePercentage));
 
         $requiredAmount = $requiresAdvance ? round($total * ($advancePercentage / 100), 2) : 0.0;
-        $confirmedPaid = (float) ($existing['confirmed_paid_amount'] ?? 0);
+        $confirmedPaid = $db->tableExists('billing_payments')
+            ? (new BillingPaymentService())->confirmedTotalForServiceCase($serviceCaseId)
+            : (float) ($existing['confirmed_paid_amount'] ?? 0);
 
         $rawDocumentType = $source['quotation_fiscal_document_type']
             ?: ($source['profile_fiscal_document_type'] ?? null)
