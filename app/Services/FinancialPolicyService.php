@@ -12,13 +12,21 @@ class FinancialPolicyService
         'export' => 'Factura de Exportación',
     ];
 
+    private const LEGACY_DOCUMENT_MAP = [
+        'consumer_invoice' => 'consumer_final',
+        'tax_credit_invoice' => 'fiscal_credit',
+        'export_invoice' => 'export',
+        'pending' => null,
+    ];
+
     public function evaluateForServiceCase(int $serviceCaseId): array
     {
         $db = db_connect();
         $source = $db->table('service_cases sc')
-            ->select('sc.id, sc.accepted_quotation_id, q.total, q.payment_term_id, q.fiscal_document_type, pt.code AS payment_term_code, pt.name AS payment_term_name, pt.requires_advance, pt.minimum_advance_percentage, pt.coordination_release_rule')
+            ->select('sc.id, sc.accepted_quotation_id, q.total, q.payment_term_id, q.fiscal_document_type AS quotation_fiscal_document_type, pt.code AS payment_term_code, pt.name AS payment_term_name, pt.requires_advance AS term_requires_advance, pt.minimum_advance_percentage, pt.coordination_release_rule AS term_release_rule, bp.fiscal_document_type AS profile_fiscal_document_type, bp.requires_advance AS profile_requires_advance, bp.advance_percentage AS profile_advance_percentage, bp.coordination_blocked_until_advance')
             ->join('quotations q', 'q.id = sc.accepted_quotation_id', 'left')
             ->join('payment_terms pt', 'pt.id = q.payment_term_id', 'left')
+            ->join('service_case_billing_profiles bp', 'bp.service_case_id = sc.id', 'left')
             ->where('sc.id', $serviceCaseId)
             ->get()->getRowArray();
 
@@ -31,11 +39,22 @@ class FinancialPolicyService
             ->get()->getRowArray();
 
         $total = round((float) ($source['total'] ?? 0), 2);
-        $requiresAdvance = (int) ($source['requires_advance'] ?? 0) === 1;
-        $advancePercentage = max(0, min(100, (float) ($source['minimum_advance_percentage'] ?? 0)));
+        $requiresAdvance = isset($source['profile_requires_advance'])
+            ? (int) $source['profile_requires_advance'] === 1
+            : (int) ($source['term_requires_advance'] ?? 0) === 1;
+
+        $advancePercentage = isset($source['profile_advance_percentage'])
+            ? (float) $source['profile_advance_percentage']
+            : (float) ($source['minimum_advance_percentage'] ?? 0);
+        $advancePercentage = max(0, min(100, $advancePercentage));
+
         $requiredAmount = $requiresAdvance ? round($total * ($advancePercentage / 100), 2) : 0.0;
         $confirmedPaid = (float) ($existing['confirmed_paid_amount'] ?? 0);
-        $documentType = $source['fiscal_document_type'] ?: ($existing['fiscal_document_type'] ?? null);
+
+        $rawDocumentType = $source['quotation_fiscal_document_type']
+            ?: ($source['profile_fiscal_document_type'] ?? null)
+            ?: ($existing['fiscal_document_type'] ?? null);
+        $documentType = $this->normalizeDocumentType($rawDocumentType);
         $paymentDefined = ! empty($source['payment_term_id']);
 
         if (! $paymentDefined) {
@@ -113,6 +132,18 @@ class FinancialPolicyService
         $policy = $this->evaluateForServiceCase($serviceCaseId);
         $type = trim((string) ($policy['fiscal_document_type'] ?? ''));
         return $type !== '' ? $type : null;
+    }
+
+    private function normalizeDocumentType(?string $type): ?string
+    {
+        $type = trim((string) $type);
+        if ($type === '') {
+            return null;
+        }
+        if (array_key_exists($type, self::LEGACY_DOCUMENT_MAP)) {
+            return self::LEGACY_DOCUMENT_MAP[$type];
+        }
+        return isset(self::DOCUMENT_TYPES[$type]) ? $type : null;
     }
 
     private function actor(): string
