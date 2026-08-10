@@ -24,8 +24,8 @@ class BillingController extends BaseController
         try {
             $id = (new BillingPreparationService())->createFromServiceCase(
                 $serviceCaseId,
-                trim((string)$this->request->getPost('document_type')),
-                trim((string)$this->request->getPost('notes'))
+                trim((string) $this->request->getPost('document_type')),
+                trim((string) $this->request->getPost('notes'))
             );
             return redirect()->to(route_to('billing.show', $id))->with('success', 'Preparación de facturación creada correctamente.');
         } catch (Throwable $e) {
@@ -38,14 +38,16 @@ class BillingController extends BaseController
     {
         $workspace = (new BillingPreparationService())->workspace($id);
         $dte = (new DteDocumentService())->workspace($id);
+        $receiver = new DteReceiverService();
 
         $workspace['dteDocument'] = $dte['document'];
         $workspace['dteItems'] = $dte['items'];
         $workspace['taxCatalog'] = $dte['taxCatalog'];
         $workspace['receiverCatalogs'] = $dte['receiverCatalogs'];
         $workspace['receiverIssues'] = $dte['receiverIssues'];
-        $workspace['taxSummary'] = !empty($dte['document']['tax_summary_json'])
-            ? (json_decode((string)$dte['document']['tax_summary_json'], true) ?: [])
+        $workspace['receiverMeta'] = $receiver->snapshotMeta((int) $dte['document']['id']);
+        $workspace['taxSummary'] = ! empty($dte['document']['tax_summary_json'])
+            ? (json_decode((string) $dte['document']['tax_summary_json'], true) ?: [])
             : [];
 
         return view('billing/show', ['title' => 'Facturación ' . $workspace['billingCase']['code']] + $workspace);
@@ -57,8 +59,8 @@ class BillingController extends BaseController
             (new DteDocumentService())->updateItemTaxClassification(
                 $billingCaseId,
                 $itemId,
-                trim((string)$this->request->getPost('fiscal_classification')),
-                trim((string)$this->request->getPost('tax_code')) ?: null
+                trim((string) $this->request->getPost('fiscal_classification')),
+                trim((string) $this->request->getPost('tax_code')) ?: null
             );
 
             return redirect()->to(route_to('billing.show', $billingCaseId) . '#dte-items')
@@ -82,6 +84,19 @@ class BillingController extends BaseController
         } catch (Throwable $e) {
             log_message('error', 'Error actualizando receptor fiscal DTE: {message}', ['message' => $e->getMessage()]);
             return redirect()->to(route_to('billing.show', $billingCaseId) . '#receiver')->withInput()->with('error', $e->getMessage());
+        }
+    }
+
+    public function restoreReceiver(int $billingCaseId): RedirectResponse
+    {
+        try {
+            (new DteReceiverService())->restoreFromCustomer($billingCaseId);
+            return redirect()->to(route_to('billing.show', $billingCaseId) . '#receiver')
+                ->with('success', 'Snapshot del receptor restaurado desde los datos fiscales actuales del Cliente.');
+        } catch (Throwable $e) {
+            log_message('error', 'Error restaurando receptor fiscal DTE: {message}', ['message' => $e->getMessage()]);
+            return redirect()->to(route_to('billing.show', $billingCaseId) . '#receiver')
+                ->with('error', $e->getMessage());
         }
     }
 }
