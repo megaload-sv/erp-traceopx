@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Services\BillingPaymentService;
 use App\Services\BillingPreparationService;
 use App\Services\DteDocumentService;
+use App\Services\DteFinalIssuePreparationService;
 use App\Services\DtePreIssueService;
 use App\Services\DteReceiverService;
 use CodeIgniter\HTTP\RedirectResponse;
@@ -95,6 +96,23 @@ class BillingController extends BaseController
                 'error' => true,
                 'message' => $e->getMessage(),
             ]);
+        }
+    }
+
+    public function prepareFinalIssue(int $billingCaseId): RedirectResponse
+    {
+        try {
+            $result = (new DteFinalIssuePreparationService())->prepare($billingCaseId);
+            $message = $result['already_prepared']
+                ? 'El DTE ya estaba preparado para firma. Se conservó el mismo número de control.'
+                : 'Emisión final preparada correctamente. El documento quedó congelado y listo para la etapa de firma.';
+
+            return redirect()->to(route_to('billing.dte_json.preview', $billingCaseId) . '?view=console')
+                ->with('success', $message);
+        } catch (Throwable $e) {
+            log_message('error', 'Error preparando emisión final DTE: {message}', ['message' => $e->getMessage()]);
+            return redirect()->to(route_to('billing.dte_json.preview', $billingCaseId) . '?view=console')
+                ->with('error', $e->getMessage());
         }
     }
 
