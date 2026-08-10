@@ -65,17 +65,35 @@ $resultClasses = [
 document.addEventListener('DOMContentLoaded',()=>{
     const select=document.getElementById('acceptance-contact');
     if(!select)return;
+
+    const map={
+        'acceptance-receiver-name':'name',
+        'acceptance-receiver-position':'position',
+        'acceptance-receiver-email':'email',
+        'acceptance-receiver-phone':'phone'
+    };
+
+    const clearFields=()=>{
+        Object.keys(map).forEach(id=>{
+            const input=document.getElementById(id);
+            if(input)input.value='';
+        });
+    };
+
     const sync=()=>{
         const option=select.options[select.selectedIndex];
-        if(!option || !option.value)return;
-        const map={
-            'acceptance-receiver-name':'name',
-            'acceptance-receiver-position':'position',
-            'acceptance-receiver-email':'email',
-            'acceptance-receiver-phone':'phone'
-        };
-        Object.entries(map).forEach(([id,key])=>{const input=document.getElementById(id);if(input)input.value=option.dataset[key]||'';});
+
+        if(!option || !option.value){
+            clearFields();
+            return;
+        }
+
+        Object.entries(map).forEach(([id,key])=>{
+            const input=document.getElementById(id);
+            if(input)input.value=option.dataset[key]||'';
+        });
     };
+
     select.addEventListener('change',sync);
     if(select.value)sync();
 });
