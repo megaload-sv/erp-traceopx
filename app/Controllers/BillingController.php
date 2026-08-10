@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Services\BillingPaymentService;
 use App\Services\BillingPreparationService;
 use App\Services\DteDocumentService;
 use App\Services\DteJsonBuilderService;
@@ -41,6 +42,7 @@ class BillingController extends BaseController
         $dte = (new DteDocumentService())->workspace($id);
         $receiver = new DteReceiverService();
         $jsonPreview = (new DteJsonBuilderService())->buildForBillingCase($id);
+        $paymentWorkspace = (new BillingPaymentService())->workspace($id);
 
         $workspace['dteDocument'] = $dte['document'];
         $workspace['dteItems'] = $dte['items'];
@@ -52,6 +54,13 @@ class BillingController extends BaseController
         $workspace['taxSummary'] = ! empty($dte['document']['tax_summary_json'])
             ? (json_decode((string) $dte['document']['tax_summary_json'], true) ?: [])
             : [];
+        $workspace['paymentSummary'] = [
+            'target_amount' => $paymentWorkspace['target_amount'],
+            'paid_amount' => $paymentWorkspace['paid_amount'],
+            'balance_amount' => $paymentWorkspace['balance_amount'],
+            'readiness' => $paymentWorkspace['payment_readiness'],
+            'payments_count' => count($paymentWorkspace['payments']),
+        ];
 
         return view('billing/show', ['title' => 'Facturación ' . $workspace['billingCase']['code']] + $workspace);
     }
