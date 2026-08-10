@@ -92,6 +92,12 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('(:num)/evidence/(:num)/download', 'WorkOrdersController::downloadEvidence/$1/$2', ['as' => 'work_orders.evidence.download']);
     });
 
+    $routes->group('billing', static function (RouteCollection $routes): void {
+        $routes->get('', 'BillingController::index', ['as' => 'billing.index']);
+        $routes->post('service-case/(:num)/prepare', 'BillingController::prepare/$1', ['as' => 'billing.prepare']);
+        $routes->get('(:num)', 'BillingController::show/$1', ['as' => 'billing.show']);
+    });
+
     $routes->group('equipment', static function (RouteCollection $routes): void {
         $routes->get('', 'EquipmentController::index', ['as' => 'equipment.index']);
         $routes->get('create', 'EquipmentController::create', ['as' => 'equipment.create']);
