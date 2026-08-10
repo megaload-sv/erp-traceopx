@@ -24,10 +24,32 @@ class AddDteTaxCalculationSummary extends Migration
         if ($columns !== []) {
             $this->forge->addColumn('dte_documents', $columns);
         }
+
+        $existing = $this->db->table('dte_settings')
+            ->where('group_code', 'tax')
+            ->where('setting_key', 'iva_rate')
+            ->get()->getRowArray();
+
+        if ($existing === null) {
+            $this->db->table('dte_settings')->insert([
+                'group_code' => 'tax',
+                'setting_key' => 'iva_rate',
+                'setting_value' => '13.00',
+                'value_type' => 'decimal',
+                'status' => 1,
+                'entry_user' => 'migration',
+                'entry_date' => date('Y-m-d H:i:s'),
+            ]);
+        }
     }
 
     public function down(): void
     {
+        $this->db->table('dte_settings')
+            ->where('group_code', 'tax')
+            ->where('setting_key', 'iva_rate')
+            ->delete();
+
         foreach (['tax_summary_json', 'discount_percentage', 'non_taxable_total', 'balance_in_favor'] as $column) {
             if ($this->db->fieldExists($column, 'dte_documents')) {
                 $this->forge->dropColumn('dte_documents', $column);
