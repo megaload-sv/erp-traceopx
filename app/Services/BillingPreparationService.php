@@ -30,9 +30,7 @@ class BillingPreparationService
             $row['financial_policy'] = $policy;
             $needsPreOperationalBilling = $policy['status'] === 'awaiting_advance';
             $postOperationalBilling = ($row['work_order_status'] ?? null) === 'closed';
-            if ($row['billing_case_id'] !== null || $needsPreOperationalBilling || $postOperationalBilling) {
-                $result[] = $row;
-            }
+            if ($row['billing_case_id'] !== null || $needsPreOperationalBilling || $postOperationalBilling) $result[] = $row;
         }
         return $result;
     }
@@ -47,15 +45,10 @@ class BillingPreparationService
             ->join('customers c', 'c.id = bc.customer_id', 'left')
             ->join('quotations q', 'q.id = bc.quotation_id', 'left')
             ->join('payment_terms pt', 'pt.id = bc.payment_term_id', 'left')
-            ->where('bc.id', $billingCaseId)
-            ->where('bc.delete_date', null)
-            ->get()->getRowArray();
-        if ($case === null) {
-            throw new RuntimeException('Preparación de facturación no encontrada.');
-        }
+            ->where('bc.id', $billingCaseId)->where('bc.delete_date', null)->get()->getRowArray();
+        if ($case === null) throw new RuntimeException('Preparación de facturación no encontrada.');
 
         $dte = (new DteDocumentService())->workspace($billingCaseId);
-
         return [
             'billingCase' => $case,
             'schedule' => $db->table('billing_payment_schedule')->where('billing_case_id', $billingCaseId)->orderBy('sequence')->get()->getResultArray(),
@@ -76,24 +69,23 @@ class BillingPreparationService
         $policy = $policyService->evaluateForServiceCase($serviceCaseId);
         $inheritedDocumentType = trim((string) ($policy['fiscal_document_type'] ?? ''));
         $documentType = $inheritedDocumentType !== '' ? $inheritedDocumentType : trim($requestedDocumentType);
-        if (! isset(self::DOCUMENT_TYPES[$documentType])) {
-            throw new RuntimeException('La cotización no define tipo de documento fiscal. Seleccione uno para continuar.');
-        }
+        if (! isset(self::DOCUMENT_TYPES[$documentType])) throw new RuntimeException('La cotización no define tipo de documento fiscal. Seleccione uno para continuar.');
 
         $source = $db->table('service_cases sc')
-            ->select('sc.*, q.total AS quotation_total, q.payment_term_id, pt.code AS payment_term_code, pt.name AS payment_term_name, pt.requires_advance, pt.minimum_advance_percentage, wo.id AS work_order_id, wo.code AS work_order_code, wo.status AS work_order_status')
+            ->select('sc.*, q.total AS quotation_total, q.payment_term_id, q.mh_operation_condition_code, q.mh_credit_term_code, q.mh_credit_period, pt.code AS payment_term_code, pt.name AS payment_term_name, pt.requires_advance, pt.minimum_advance_percentage, wo.id AS work_order_id, wo.code AS work_order_code, wo.status AS work_order_status')
             ->join('quotations q', 'q.id = sc.accepted_quotation_id', 'inner')
             ->join('payment_terms pt', 'pt.id = q.payment_term_id', 'left')
             ->join('work_orders wo', 'wo.service_case_id = sc.id AND wo.delete_date IS NULL', 'left')
-            ->where('sc.id', $serviceCaseId)
-            ->orderBy('wo.id', 'DESC')->get(1)->getRowArray();
+            ->where('sc.id', $serviceCaseId)->orderBy('wo.id', 'DESC')->get(1)->getRowArray();
         if ($source === null) throw new RuntimeException('No fue posible reconstruir la información comercial del Expediente.');
 
         $preOperationalBilling = $policy['status'] === 'awaiting_advance';
         $postOperationalBilling = ($source['work_order_status'] ?? null) === 'closed';
-        if (! $preOperationalBilling && ! $postOperationalBilling) {
-            throw new RuntimeException('La política financiera todavía no requiere preparar facturación en este punto del proceso.');
-        }
+        if (! $preOperationalBilling && ! $postOperationalBilling) throw new RuntimeException('La política financiera todavía no requiere preparar facturación en este punto del proceso.');
+
+        $plannedMethods = $db->table('quotation_payment_methods')
+            ->select('mh_payment_code AS codigo, payment_method_name_snapshot AS descripcion')
+            ->where('quotation_id', (int) $source['accepted_quotation_id'])->orderBy('sequence')->get()->getResultArray();
 
         $total = round((float) $source['quotation_total'], 2);
         $now = date('Y-m-d H:i:s');
@@ -107,6 +99,10 @@ class BillingPreparationService
                 'payment_term_id'=>!empty($source['payment_term_id'])?(int)$source['payment_term_id']:null,'document_type'=>$documentType,
                 'status'=>'draft','currency_code'=>'USD','quotation_total_snapshot'=>$total,'invoiceable_amount'=>$total,'paid_amount'=>0,'balance_amount'=>$total,
                 'payment_term_code_snapshot'=>$source['payment_term_code']??null,'payment_term_name_snapshot'=>$source['payment_term_name']??null,
+                'mh_operation_condition_code_snapshot'=>$source['mh_operation_condition_code']??null,
+                'mh_credit_term_code_snapshot'=>$source['mh_credit_term_code']??null,
+                'mh_credit_period_snapshot'=>!empty($source['mh_credit_period'])?(int)$source['mh_credit_period']:null,
+                'planned_payment_methods_json'=>$plannedMethods!==[]?json_encode($plannedMethods,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES):null,
                 'notes'=>trim($notes)!==''?trim($notes):null,'prepared_by_user_id'=>session('auth_user_id')?:null,'prepared_at'=>$now,'entry_user'=>$this->actor(),
             ], true);
             if ($billingCaseId === false) throw new RuntimeException('No fue posible crear la preparación de facturación.');
