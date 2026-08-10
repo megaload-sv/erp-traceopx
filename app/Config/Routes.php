@@ -82,6 +82,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('(:num)/finish', 'WorkOrderCompletionController::finish/$1', ['as' => 'work_orders.finish']);
         $routes->post('(:num)/acceptance', 'WorkOrderAcceptanceController::store/$1', ['as' => 'work_orders.acceptance.store']);
         $routes->get('(:num)/acceptance/(:num)/signature', 'WorkOrderAcceptanceController::signature/$1/$2', ['as' => 'work_orders.acceptance.signature']);
+        $routes->post('(:num)/close', 'WorkOrderClosureController::close/$1', ['as' => 'work_orders.close']);
         $routes->post('(:num)/mission-log', 'WorkOrdersController::addMissionLog/$1', ['as' => 'work_orders.mission_log.store']);
         $routes->post('(:num)/checklist/(:num)', 'WorkOrdersController::answerChecklist/$1/$2', ['as' => 'work_orders.checklist.answer']);
         $routes->post('(:num)/incidents', 'WorkOrdersController::addIncident/$1', ['as' => 'work_orders.incidents.store']);
