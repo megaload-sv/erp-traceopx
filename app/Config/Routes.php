@@ -4,6 +4,8 @@ use CodeIgniter\Router\RouteCollection;
 
 /** @var RouteCollection $routes */
 $routes->get('/', 'Home::index');
+$routes->get('integrations/whatsapp/webhook', 'WhatsAppWebhookController::verify');
+$routes->post('integrations/whatsapp/webhook', 'WhatsAppWebhookController::receive');
 
 $routes->group('auth', static function (RouteCollection $routes): void {
     $routes->get('login', 'AuthController::login', ['as' => 'login']);
