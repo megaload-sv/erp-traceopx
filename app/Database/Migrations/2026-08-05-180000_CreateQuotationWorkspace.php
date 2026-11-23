@@ -97,9 +97,9 @@ class CreateQuotationWorkspace extends Migration
             'id' => ['type' => 'INT', 'unsigned' => true, 'auto_increment' => true],
             'uuid' => ['type' => 'CHAR', 'constraint' => 36],
             'code' => ['type' => 'VARCHAR', 'constraint' => 40],
-            'commercial_request_id' => ['type' => 'INT', 'unsigned' => true, 'null' => true],
-            'customer_id' => ['type' => 'INT', 'unsigned' => true],
-            'assigned_user_id' => ['type' => 'INT', 'unsigned' => true, 'null' => true],
+            'commercial_request_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => true],
+            'customer_id' => ['type' => 'BIGINT', 'unsigned' => true],
+            'assigned_user_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => true],
             'payment_term_id' => ['type' => 'INT', 'unsigned' => true, 'null' => true],
             'origin_type' => ['type' => 'VARCHAR', 'constraint' => 30, 'default' => 'direct'],
             'subject' => ['type' => 'VARCHAR', 'constraint' => 190],
@@ -136,7 +136,7 @@ class CreateQuotationWorkspace extends Migration
         $this->forge->addField(array_merge([
             'id' => ['type' => 'INT', 'unsigned' => true, 'auto_increment' => true],
             'quotation_id' => ['type' => 'INT', 'unsigned' => true],
-            'customer_contact_id' => ['type' => 'INT', 'unsigned' => true],
+            'customer_contact_id' => ['type' => 'BIGINT', 'unsigned' => true],
             'is_primary' => ['type' => 'TINYINT', 'constraint' => 1, 'default' => 0],
         ], $this->auditFields()));
         $this->forge->addKey('id', true);
